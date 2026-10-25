@@ -72,7 +72,7 @@ python3 /path/to/yomitoki/scripts/run_checks.py \
 python3 /path/to/yomitoki/scripts/run_checks.py --accepted accepted.json /path/to/project
 ```
 
-- `path`はリストファイルのあるディレクトリからの相対パス、`function`は関数名（関数の外の三項式は`null`）、`rule`はルール名、`actual`は許容した時点の実測値、`reason`は空にできない理由。項目はこの5つで、過不足があればエラーにする。
+- `path`はリストファイルのあるディレクトリからの相対パス（区切りは`/`と`\`のどちらでもよく、MacとWindowsで同じリストを使える。`/`や`C:`で始まる絶対パスはどのOSでもエラー）、`function`は関数名（関数の外の三項式は`null`）、`rule`はルール名、`actual`は許容した時点の実測値、`reason`は空にできない理由。項目はこの5つで、過不足があればエラーにする。
 - 照合は行番号を使わず、パス・関数名・ルールで行う。同じファイル内の同名の関数（別クラスの同名メソッドなど）は同じ項目に一致する。
 - 対象は構文指標（`max-*`、`no-nested-ternary`）だけ。Ruffのlintと整形は許容できない（`noqa`を無効にしているのと同じ方針）。
 - 一致し、実測値が`actual`以下の指摘は`issues`から`accepted`へ理由付きで移り、終了コードの判定から外れる。通常表示でも「許容済み: N件」と各指摘・理由を必ず表示する。

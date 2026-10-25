@@ -274,6 +274,19 @@ class WorkflowTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 2)
                 self.assertIn('許容リスト', result.stderr)
 
+    def test_accepted_paths_take_either_separator_and_no_absolute_path(self):
+        source = self.root / 'sub' / 'sample.py'
+        source.parent.mkdir()
+        source.write_text('def f(a,b,c,d,e):\n    return a\n')
+        entry = {'function': 'f', 'rule': 'max-params', 'actual': 5, 'reason': '理由'}
+        for path in ['sub/sample.py', 'sub\\sample.py']:
+            status, report = self.run_script('check.py', '--accepted', self.write_accepted(dict(entry, path=path)), source)
+            self.assertEqual((status, len(report['accepted'])), (0, 1), path)
+        for path in ['/sub/sample.py', '\\sub\\sample.py', 'C:\\sub\\sample.py', 'C:sub/sample.py']:
+            result = self.run_text('check.py', '--accepted', self.write_accepted(dict(entry, path=path)), source)
+            self.assertEqual(result.returncode, 2, path)
+            self.assertIn('許容リスト', result.stderr)
+
     def test_accepting_a_finding_is_not_reported_as_a_reduction(self):
         source = 'def f(a,b,c,d,e):\n    return a\n'
         before = self.scan(source)

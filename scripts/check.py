@@ -11,7 +11,7 @@ import re
 import shlex
 import sys
 import tokenize
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 DEFAULT_LIMITS = {'max-lines': 50, 'max-params': 4, 'max-depth': 3, 'max-complexity': 10}
 EXCLUDED = {'.git', '.venv', 'venv', '__pycache__', 'node_modules', '.next', 'build', 'dist'}
@@ -58,7 +58,8 @@ def is_accepted_entry(entry):
     if not isinstance(entry, dict) or set(entry) != ACCEPTED_KEYS:
         return False
     return (
-        isinstance(entry['path'], str) and not Path(entry['path']).is_absolute()
+        # A list is shared between Mac and Windows, so absolute paths of either style are rejected on both.
+        isinstance(entry['path'], str) and not PureWindowsPath(entry['path']).anchor
         and isinstance(entry['function'], (str, type(None))) and entry['rule'] in ACCEPTABLE_RULES
         and type(entry['actual']) is int and entry['actual'] >= 1
         and isinstance(entry['reason'], str) and bool(entry['reason'].strip())
@@ -81,8 +82,9 @@ def load_accepted(value):
                 + json.dumps(entry, ensure_ascii=False)
             )
     # Paths are relative to the list file, so the result does not depend on the working directory.
+    # Either separator works, because a list written on Windows is also used on Mac.
     base = path.resolve().parent
-    return [dict(entry, path=str((base / entry['path']).resolve())) for entry in entries]
+    return [dict(entry, path=str((base / PureWindowsPath(entry['path']).as_posix()).resolve())) for entry in entries]
 
 
 def collect_files(targets, report):
