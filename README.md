@@ -21,7 +21,7 @@ https://github.com/user-attachments/assets/1c9d27cf-d481-47d6-bb6b-0ae146cda7e0
 - `scripts/compare_reports.py`：検査条件・対象範囲・指摘数・指標の変化を比較
 - `scripts/diff_code.py`：変更前後のPythonソースから構造の変化と確認位置を抽出
 
-作業は「文脈と契約の確認 → 変更前の保存・機械検査 → 小さな修正 → 数値とソース差分の点検 → テスト」の順に進めます。差分検査の使い方は [変更内容の点検](references/change-review.md) を参照してください。
+作業は「文脈と契約の確認 → 変更前の保存・機械検査 → 小さな修正 → 数値とソース差分の点検 → テスト」の順に進めます。コードはレビューでも修正でも [判断基準](references/principles.md) の14項目すべてに照らして確認し、指摘と変更には該当する項目の番号を付けて報告します。差分検査の使い方は [変更内容の点検](references/change-review.md) を参照してください。
 
 ## 対応言語
 

@@ -21,7 +21,7 @@ https://github.com/user-attachments/assets/1c9d27cf-d481-47d6-bb6b-0ae146cda7e0
 - `scripts/compare_reports.py`：比较检查条件、目标范围、问题数量和指标的变化
 - `scripts/diff_code.py`：从修改前后的 Python 源码中提取结构变化和需要确认的位置
 
-工作按照"确认上下文与约定 → 保存修改前的状态并进行机械检查 → 小幅修改 → 核对数值与源码差异 → 测试"的顺序进行。差异检查的用法请参阅 [变更内容检查](references/change-review.md)（日语）。
+工作按照"确认上下文与约定 → 保存修改前的状态并进行机械检查 → 小幅修改 → 核对数值与源码差异 → 测试"的顺序进行。无论是审查还是修改，都会对照 [判断标准](references/principles.md)（日语）的全部 14 个项目检查代码，并在报告的问题和修改中注明对应项目的编号。差异检查的用法请参阅 [变更内容检查](references/change-review.md)（日语）。
 
 ## 支持的语言
 

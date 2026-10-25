@@ -21,7 +21,7 @@ Using a pelican animation as an example, the video compares real code before and
 - `scripts/compare_reports.py`: Compares check conditions, target scope, finding counts, and metric changes
 - `scripts/diff_code.py`: Extracts structural changes and locations to review from Python sources before and after a change
 
-Work proceeds in this order: "confirm context and contracts → save the original and run mechanical checks → make small fixes → inspect the metrics and source diff → test". For how to use the diff checks, see [Reviewing Changes](references/change-review.md) (Japanese).
+Work proceeds in this order: "confirm context and contracts → save the original and run mechanical checks → make small fixes → inspect the metrics and source diff → test". For both reviews and fixes, the code is checked against all 14 items of the [Judgment Criteria](references/principles.md) (Japanese), and each finding and change is reported with the number of the item it concerns. For how to use the diff checks, see [Reviewing Changes](references/change-review.md) (Japanese).
 
 ## Supported languages
 
