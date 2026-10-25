@@ -17,7 +17,9 @@ RULES = 'F401,F841,SIM,RET'
 def find_ruff(explicit):
     if explicit:
         return explicit
-    bundled = Path(__file__).resolve().parents[1] / '.venv' / 'bin' / 'ruff'
+    environment = Path(__file__).resolve().parents[1] / '.venv'
+    # Windows virtual environments keep executables in Scripts\ as .exe files.
+    bundled = environment / 'Scripts' / 'ruff.exe' if os.name == 'nt' else environment / 'bin' / 'ruff'
     return str(bundled) if bundled.is_file() else shutil.which('ruff')
 
 

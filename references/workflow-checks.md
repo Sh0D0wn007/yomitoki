@@ -32,7 +32,7 @@ python3 /path/to/yomitoki/scripts/run_checks.py \
 
 ## Ruffの導入
 
-Ruffの検索順は`--ruff`で指定した実行ファイル、スキル直下の`.venv/bin/ruff`、`PATH`上の`ruff`。Pythonの`-m ruff`を自動探索することはない。検証済みバージョンは [../requirements.txt](../requirements.txt) に固定している。
+Ruffの検索順は`--ruff`で指定した実行ファイル、スキル直下の`.venv/bin/ruff`（Windowsでは`.venv\Scripts\ruff.exe`）、`PATH`上の`ruff`。Pythonの`-m ruff`を自動探索することはない。検証済みバージョンは [../requirements.txt](../requirements.txt) に固定している。
 
 ```bash
 python3 -m venv /path/to/yomitoki/.venv
@@ -51,6 +51,8 @@ python3 /path/to/yomitoki/scripts/run_checks.py \
 ## 整形の適用
 
 `run_checks.py`は対象を書き換えない。`format-required`が出ると、検査と同じRuff・設定で整形するコマンドを「同じ設定で整形するには:」の行に表示する。JSONでは`ruff.formatCommand`（ファイルを除いた引数の配列）に入る。
+
+表示するコマンドは、POSIXシェル（bash・zsh、WindowsではGit Bash）向けに引用符を付けている。PowerShell 7.3以降では、先頭に`& `を付ければそのまま実行できる。Windows PowerShell 5.1は引数の中の`"`を落とし、cmdは`'`を引用符として扱わないため、どちらでも動かない。その場合はGit Bashで実行するか、`ruff.formatCommand`の配列にファイルを加えて実行する。
 
 - プロジェクトに既存のフォーマッター設定があれば、そちらで整形する。表示されたコマンドで既存のスタイルを上書きしない。
 - 既存の設定がない場合や新規コードの場合は、表示されたコマンドをそのまま実行する。Ruffの場所や引数を推測して組み立てない。

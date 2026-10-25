@@ -173,6 +173,19 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(report['ruff']['filesChecked'], 0)
         self.assertEqual(self.compare(report, report)[0], 0)
 
+    def test_bundled_ruff_is_found_in_the_platform_virtual_environment(self):
+        sys.path.insert(0, str(SCRIPTS))
+        self.addCleanup(sys.path.remove, str(SCRIPTS))
+        spec = importlib.util.spec_from_file_location('run_checks', SCRIPTS / 'run_checks.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.__file__ = str(self.root / 'scripts' / 'run_checks.py')
+        bundled = self.root / '.venv' / ('Scripts/ruff.exe' if os.name == 'nt' else 'bin/ruff')
+        bundled.parent.mkdir(parents=True)
+        bundled.write_text('')
+        self.assertEqual(module.find_ruff(None), str(bundled.resolve()))
+        self.assertEqual(module.find_ruff('explicit-ruff'), 'explicit-ruff')
+
     def test_ruff_failure_and_invalid_output_are_errors(self):
         fake = self.root / 'fake-ruff'
         self.source.write_text('value = 1\n')
