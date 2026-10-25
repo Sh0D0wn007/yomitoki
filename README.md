@@ -1,3 +1,5 @@
+
+https://github.com/user-attachments/assets/28d7a389-a9b0-4eb2-8a19-9d43e78d7d74
 <p align="center">
   <img src="assets/logo.svg" alt="yomitoki" width="560">
 </p>
@@ -12,7 +14,7 @@
 
 **紹介動画：実コードで見る改善前後**
 
-https://github.com/user-attachments/assets/a002b50b-675d-4812-821b-24724cc1409c
+https://github.com/user-attachments/assets/1c9d27cf-d481-47d6-bb6b-0ae146cda7e0
 
 ペリカンのアニメーションを題材に、描画順と詳細の分離、命名の変更を実コードで比較します。関数数・コード行数の変化と、検証できた範囲も紹介しています。
 
