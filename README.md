@@ -77,11 +77,27 @@ ln -s ~/.agents/skills/yomitoki ~/.claude/skills/yomitoki
 
 Python 3.10以上を使用してください。Python以外の構文解析に使うtree-sitterはPython 3.10以上が必要です。Python 3.9ではPythonファイルだけを検査できます。Pythonを検査する場合は、対象コードの構文に対応したPythonを使用してください。仮想環境は移動すると動かなくなるため、配置した後のディレクトリで作成します。以下はプロジェクト単位でインストールした場合の例です。ユーザー全体にインストールした場合は `~/.agents/skills/yomitoki`、手動配置した場合はその配置先へ移動してください。
 
+macOSに標準で入っている`python3`（Xcodeのコマンドラインツール付属）は3.9のことがあります。`python3 --version`で確認し、3.9なら3.10以上のPython（例：Homebrewの`python3.12`）で仮想環境を作ります。3.9で作ると、tree-sitterが導入されず、Python以外のファイルが検査エラーになります。
+
+macOS・Linux：
+
 ```bash
 cd .agents/skills/yomitoki
+python3 --version
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
+
+Windows（PowerShell）：
+
+```powershell
+cd .agents\skills\yomitoki
+python --version
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Windowsでは、以降のコマンドの`python3`を`python`に、`.venv/bin/`を`.venv\Scripts\`（Git Bashでは`.venv/Scripts/`）に読み替えます。
 
 ## 実行
 
@@ -108,9 +124,19 @@ python3 scripts/check.py /path/to/project
 
 ## 検証
 
+macOS・Linux：
+
 ```bash
 YOMITOKI_RUFF="$PWD/.venv/bin/ruff" .venv/bin/python -B -m unittest discover -s tests -v
 .venv/bin/ruff check --isolated --no-cache --select E9,F scripts tests
+```
+
+Windows（PowerShell）：
+
+```powershell
+$env:YOMITOKI_RUFF = "$PWD\.venv\Scripts\ruff.exe"
+.venv\Scripts\python.exe -B -m unittest discover -s tests -v
+.venv\Scripts\ruff.exe check --isolated --no-cache --select E9,F scripts tests
 ```
 
 Python 3.9では`match`構文のテストと、tree-sitterを使う他言語のテストをスキップします。Python 3.10以上で`requirements.txt`を導入すると全ケースを実行できます。

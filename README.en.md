@@ -77,11 +77,27 @@ For other [Agent Skills-compatible agents](https://agentskills.io/), place it in
 
 Use Python 3.10 or later. tree-sitter, which parses languages other than Python, requires Python 3.10 or later; on Python 3.9 only Python files can be checked. When checking Python, use a Python version that supports the syntax of the target code. Virtual environments break when moved, so create one in the directory where you placed the skill. The example below assumes a per-project installation. For a global installation, use `~/.agents/skills/yomitoki`; for manual placement, use your chosen directory.
 
+The `python3` that ships with macOS (from the Xcode Command Line Tools) may be 3.9. Check with `python3 --version`; if it is 3.9, create the virtual environment with Python 3.10 or later (for example, Homebrew's `python3.12`). With 3.9, tree-sitter is not installed and files other than Python fail to check.
+
+macOS and Linux:
+
 ```bash
 cd .agents/skills/yomitoki
+python3 --version
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
+
+Windows (PowerShell):
+
+```powershell
+cd .agents\skills\yomitoki
+python --version
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+On Windows, read `python3` in the following commands as `python`, and `.venv/bin/` as `.venv\Scripts\` (`.venv/Scripts/` in Git Bash).
 
 ## Usage
 
@@ -108,9 +124,19 @@ The thresholds are initial settings for surfacing candidates for review. No find
 
 ## Testing
 
+macOS and Linux:
+
 ```bash
 YOMITOKI_RUFF="$PWD/.venv/bin/ruff" .venv/bin/python -B -m unittest discover -s tests -v
 .venv/bin/ruff check --isolated --no-cache --select E9,F scripts tests
+```
+
+Windows (PowerShell):
+
+```powershell
+$env:YOMITOKI_RUFF = "$PWD\.venv\Scripts\ruff.exe"
+.venv\Scripts\python.exe -B -m unittest discover -s tests -v
+.venv\Scripts\ruff.exe check --isolated --no-cache --select E9,F scripts tests
 ```
 
 On Python 3.9, the `match` statement test and the tree-sitter tests for other languages are skipped. On Python 3.10 or later with `requirements.txt` installed, all cases run.

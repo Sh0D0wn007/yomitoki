@@ -18,6 +18,8 @@ python3 /path/to/yomitoki/scripts/check.py --max-lines 60 --max-depth 4 /path/to
 /path/to/yomitoki/.venv/bin/python /path/to/yomitoki/scripts/check.py /path/to/project
 ```
 
+Windowsでは、コマンドの`python3`を`python`に、`.venv/bin/`を`.venv\Scripts\`（Git Bashでは`.venv/Scripts/`）に読み替える。
+
 対象コードで使われている構文を理解できるPythonで実行する。例えばPython 3.9では`match`構文を解析できず、検査エラーとなる。
 
 理由があって残す指摘は、`--accepted 許容リスト.json`で許容できる。形式と注意点は [workflow-checks.md](workflow-checks.md#理由付きの許容) を参照する。

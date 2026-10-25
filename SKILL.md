@@ -48,7 +48,7 @@ Python・C・C++・Java・JavaScript・TypeScriptは、以下の付属検査で�
 /path/to/yomitoki/.venv/bin/python /path/to/yomitoki/scripts/run_checks.py /path/to/project
 ```
 
-Python以外の構文解析にはtree-sitterを使うため、`requirements.txt`を導入したスキル直下の`.venv`のPythonで実行する。導入されていなければ該当ファイルは検査エラーになる。
+Python以外の構文解析にはtree-sitterを使うため、`requirements.txt`を導入したスキル直下の`.venv`のPythonで実行する。導入されていなければ該当ファイルは検査エラーになる。Windowsでは、コマンドの`python3`を`python`に、`.venv/bin/`を`.venv\Scripts\`（Git Bashでは`.venv/Scripts/`）に読み替える。
 
 これはスキルの付属検査であり、Ruff lintはPythonファイルだけに `F401,F841,SIM,RET` を独立した設定で調べる。プロジェクト既存のlint全体・型チェック・テスト・ビルドは実行しない。
 

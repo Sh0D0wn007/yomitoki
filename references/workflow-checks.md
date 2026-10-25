@@ -6,7 +6,7 @@
 python3 /path/to/yomitoki/scripts/run_checks.py /path/to/project
 ```
 
-`run_checks.py`は既存の構文指標検査と、Pythonファイルに対するRuffの次の検査を実行する。Python以外のファイルは構文指標だけを検査し、Pythonファイルがなければ Ruffは不要。Python以外を含む場合は、`requirements.txt`を導入したスキル直下の`.venv/bin/python`で実行する。
+`run_checks.py`は既存の構文指標検査と、Pythonファイルに対するRuffの次の検査を実行する。Python以外のファイルは構文指標だけを検査し、Pythonファイルがなければ Ruffは不要。Python以外を含む場合は、`requirements.txt`を導入したスキル直下の`.venv/bin/python`で実行する。Windowsでは、コマンドの`python3`を`python`に、`.venv/bin/`を`.venv\Scripts\`（Git Bashでは`.venv/Scripts/`）に読み替える。
 
 - `F401`：未使用import
 - `F841`：未使用のローカル変数
@@ -163,6 +163,13 @@ python3 /path/to/yomitoki/scripts/run_checks.py src/c.py
 ```bash
 YOMITOKI_RUFF=/path/to/yomitoki/.venv/bin/ruff \
   /path/to/yomitoki/.venv/bin/python -B -m unittest discover -s /path/to/yomitoki/tests -v
+```
+
+Windows（PowerShell）：
+
+```powershell
+$env:YOMITOKI_RUFF = "C:\path\to\yomitoki\.venv\Scripts\ruff.exe"
+C:\path\to\yomitoki\.venv\Scripts\python.exe -B -m unittest discover -s C:\path\to\yomitoki\tests -v
 ```
 
 `YOMITOKI_RUFF`を指定しないと実Ruffを使う結合テストはスキップされる。Python 3.9では`match`構文のテストも、tree-sitterがなければ他言語のテストもスキップされる。
