@@ -80,7 +80,7 @@ JSONは次の情報を含む。
 
 位置は1始まり。`issues.column`はUTF-8バイト位置であり、日本語を含む行では表示上の文字位置と一致しないことがある。出力順序は固定し、実行日時を含めない。同じコード・パス・Pythonバージョン・解析器のバージョン・閾値なら同じ結果になる。
 
-`check.py`・`run_checks.py`・`compare_reports.py`・`diff_code.py`の標準出力と標準エラーは、OSのロケールにかかわらずUTF-8で出す。日本語版Windowsのcp932では表せない文字（絵文字など）を含むパスでも、出力の途中で失敗しないためである。WindowsのPowerShellで出力を変数やパイプで受け取るときは、先に`[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`を設定する。
+`check.py`・`run_checks.py`・`compare_reports.py`・`diff_code.py`の標準出力と標準エラーは、OSのロケールにかかわらずUTF-8で出す。日本語版Windowsのcp932では表せない文字（絵文字など）を含むパスでも、出力の途中で失敗しないためである。WindowsのPowerShellで出力を変数やパイプで受け取るとき、`>`でファイルに保存するときは、先に`[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`を設定する。
 
 ## 結果の読み方
 

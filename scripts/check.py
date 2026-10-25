@@ -68,7 +68,8 @@ def is_accepted_entry(entry):
 def load_accepted(value):
     path = Path(value)
     try:
-        entries = json.loads(path.read_text(encoding='utf-8'))
+        # Bytes let json accept the UTF-16 and BOM files that Windows tools save.
+        entries = json.loads(path.read_bytes())
     except (OSError, UnicodeError, ValueError) as error:
         raise argparse.ArgumentTypeError(f'許容リストを読めません: {error}')
     if not isinstance(entries, list):

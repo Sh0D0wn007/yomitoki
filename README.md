@@ -94,6 +94,8 @@ python3 -m venv .venv
 .venv/bin/python scripts/compare_reports.py before.json after.json
 ```
 
+PowerShellで`>`を使って保存するときは、先に`[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`を実行します。Windows PowerShell 5.1では、実行しないと日本語を含む出力が壊れ、比較できません。
+
 検査は指摘ありで終了コード`1`、実行失敗で`2`を返します。比較は条件不一致も`2`です。詳しい設定、比較方法、終了コードは [一括検査と前後比較](references/workflow-checks.md) を参照してください。
 
 Pythonファイルの構文指標だけを、追加パッケージなしで検査する場合：

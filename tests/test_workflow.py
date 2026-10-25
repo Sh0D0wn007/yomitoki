@@ -48,6 +48,18 @@ class WorkflowTests(unittest.TestCase):
             path.write_text(json.dumps(report))
         return self.run_script('compare_reports.py', *paths)
 
+    def test_reports_and_accepted_lists_saved_as_utf16_or_with_bom_are_read(self):
+        report = self.scan('def f(a,b,c,d,e):\n    return a\n')
+        paths = [self.root / 'before.json', self.root / 'after.json']
+        for encoding in ['utf-16', 'utf-8-sig']:
+            for path in paths:
+                path.write_bytes(json.dumps(report, ensure_ascii=False).encode(encoding))
+            status, result = self.run_script('compare_reports.py', *paths)
+            self.assertEqual(status, 0, (encoding, result['errors']))
+            accepted = self.write_accepted({'path': 'sample.py', 'function': 'f', 'rule': 'max-params', 'actual': 5, 'reason': '理由'})
+            accepted.write_bytes(accepted.read_bytes().decode('utf-8').encode(encoding))
+            self.assertEqual(self.run_script('check.py', '--accepted', accepted, self.source)[0], 0, encoding)
+
     def test_comparison_reports_measured_reduction(self):
         before = self.scan('def f(a,b,c,d,e):\n    return a\n')
         after = self.scan('def f(a,b,c,d):\n    return a\n')

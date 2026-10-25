@@ -94,6 +94,8 @@ Run from the repository root with the Python in the `.venv` you set up.
 .venv/bin/python scripts/compare_reports.py before.json after.json
 ```
 
+When saving with `>` in PowerShell, first run `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`. In Windows PowerShell 5.1, output containing Japanese is otherwise corrupted and cannot be compared.
+
 Checks exit with code `1` when there are findings and `2` on execution failure. Comparison also returns `2` when the conditions do not match. For detailed settings, comparison methods, and exit codes, see [Batch Checks and Before/After Comparison](references/workflow-checks.md) (Japanese).
 
 To check only the syntax metrics of Python files without additional packages:

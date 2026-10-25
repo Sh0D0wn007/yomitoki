@@ -208,8 +208,9 @@ def main():
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args()
     try:
-        before = json.loads(args.before.read_text(encoding='utf-8'))
-        after = json.loads(args.after.read_text(encoding='utf-8'))
+        # Windows PowerShell 5.1 saves redirected output as UTF-16; json detects UTF-8/16/32 and BOMs from bytes.
+        before = json.loads(args.before.read_bytes())
+        after = json.loads(args.after.read_bytes())
         result = compare(before, after)
     except (OSError, UnicodeError, ValueError, TypeError, KeyError) as error:
         result = {'schemaVersion': 1, 'comparable': False, 'errors': [str(error)], 'exitCode': 2,

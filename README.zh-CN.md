@@ -94,6 +94,8 @@ python3 -m venv .venv
 .venv/bin/python scripts/compare_reports.py before.json after.json
 ```
 
+在 PowerShell 中用 `>` 保存时，请先运行 `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`。在 Windows PowerShell 5.1 中，如果不先运行，包含日语的输出会损坏，无法进行比较。
+
 检查发现问题时返回退出码 `1`，执行失败时返回 `2`。比较时条件不一致也返回 `2`。详细设置、比较方法和退出码请参阅 [批量检查与前后比较](references/workflow-checks.md)（日语）。
 
 如需在不安装额外包的情况下仅检查 Python 文件的语法指标：

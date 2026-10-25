@@ -107,6 +107,8 @@ python3 /path/to/yomitoki/scripts/compare_reports.py before.json after.json
 python3 /path/to/yomitoki/scripts/compare_reports.py --json before.json after.json
 ```
 
+PowerShellで`>`を使って保存するときは、先に`[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`を実行する。Windows PowerShell 5.1では、実行しないと日本語を含む出力が壊れ、JSONとして読めなくなる。5.1は保存したファイルをUTF-16にするが、`compare_reports.py`はUTF-8・UTF-16・BOM付きのどれでも読める（許容リストも同じ）。
+
 検査コマンドは指摘があれば終了コード`1`を返すため、`&&`で比較処理を繋ぐとそこで止まる。JSONを保存したうえで、各結果を確認して次のコマンドを実行する。
 
 比較は`check.py`同士、または`run_checks.py`同士で行う。異なる種類を混ぜると比較条件不一致になる。検査器のハッシュを含まない旧レポートは再生成が必要。
