@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+.DS_Store
+.env
+.env.*
+before.json
+after.json
+/output/
+/pelican_riding_bicycle.html

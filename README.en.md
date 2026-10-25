@@ -1,0 +1,106 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="yomitoki" width="560">
+</p>
+
+<p align="center">
+  <a href="README.md">🇯🇵 日本語</a> | <a href="README.zh-CN.md">🇨🇳 简体中文</a> | <b>🇺🇸 English</b>
+</p>
+
+# yomitoki
+
+A skill for AI agents that reduces the time it takes to understand code. It is written as a `SKILL.md` in the [Agent Skills](https://agentskills.io/) format and works with compatible agents such as Claude Code, Codex, Gemini CLI, Cursor, and GitHub Copilot. In addition to reviewing naming, control flow, variables, responsibilities, comments, and tests, it runs mechanical checks on Python code and compares the results before and after changes.
+
+**Demo video: Before and after improvements in real code**
+
+https://github.com/user-attachments/assets/a002b50b-675d-4812-821b-24724cc1409c
+
+Using a pelican animation as an example, the video compares real code before and after separating drawing order from implementation details and improving names. It also shows changes in function count and lines of code, along with the scope of verification.
+
+- `scripts/check.py`: Checks function length, argument count, nesting, complexity, and nested ternary expressions
+- `scripts/run_checks.py`: Runs syntax metrics, Ruff lint, and format checks in one pass
+- `scripts/compare_reports.py`: Compares check conditions, target scope, finding counts, and metric changes
+- `scripts/diff_code.py`: Extracts structural changes and locations to review from Python sources before and after a change
+
+Work proceeds in this order: "confirm context and contracts → save the original and run mechanical checks → make small fixes → inspect the metrics and source diff → test". For how to use the diff checks, see [Reviewing Changes](references/change-review.md) (Japanese).
+
+## Mechanical checks for other languages
+
+Use tools already installed in the target project: clang-tidy for C/C++, PMD for Java, ESLint, Biome, or Oxlint for JavaScript/TypeScript, HTML-validate for HTML, and Stylelint for CSS. TypeScript projects can also use typescript-eslint. See [Language-specific checks](references/language-checks.md) (Japanese) for selection, commands, and before/after comparison. The bundled Python scripts only analyze Python; they do not install or run tools for other languages.
+
+## Setup
+
+### Install with npx
+
+Use npm (npx) with Node.js **24.22.1 or later in the 24.x line (recommended)**, or **22.23.4 or later in the 22.x line**. Choose the latest patch release in your chosen major version.
+
+These versions include the fixes from the [October 21, 2026 security release](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases) (verified October 25, 2026). Run from your project's root:
+
+```bash
+npx skills add Sh0D0wn007/yomitoki --skill yomitoki
+```
+
+Follow the prompts to select your agents. Installation is per-project by default. Add `--global` to use the skill across all projects. For example, to install for both Codex and Claude Code:
+
+```bash
+npx skills add Sh0D0wn007/yomitoki --skill yomitoki --global --agent codex claude-code
+```
+
+The CLI handles placement and links, so manual placement is unnecessary. Install the Python check dependencies separately as described below. See the [official skills CLI documentation](https://github.com/vercel-labs/skills/blob/main/docs/commands.md) for details.
+
+### Manual placement
+
+Place this repository in your agent's skills directory under the name `yomitoki`. `~/.agents/skills/` is read by multiple agents, so placing it there lets you share it from a single location.
+
+| Agent | User-wide | Per-project |
+| --- | --- | --- |
+| Codex, Gemini CLI, Cursor, GitHub Copilot | `~/.agents/skills/yomitoki` | `.agents/skills/yomitoki` |
+| Claude Code | `~/.claude/skills/yomitoki` | `.claude/skills/yomitoki` |
+
+If you also use Claude Code, create a symbolic link to the copy in `~/.agents/skills` so that updates apply to both.
+
+```bash
+mkdir -p ~/.claude/skills
+ln -s ~/.agents/skills/yomitoki ~/.claude/skills/yomitoki
+```
+
+For other [Agent Skills-compatible agents](https://agentskills.io/), place it in the skills location described in each agent's documentation. If you already have an existing skill, review its contents and back it up before migrating. The skill's instructions are in [SKILL.md](SKILL.md). `agents/openai.yaml` is an optional setting for how the skill is displayed in Codex.
+
+### Using the Python checks
+
+Python 3.9 or later is required. Use a Python version that supports the syntax of the target code. Virtual environments break when moved, so create one in the directory where you placed the skill. The example below assumes a per-project installation. For a global installation, use `~/.agents/skills/yomitoki`; for manual placement, use your chosen directory.
+
+```bash
+cd .agents/skills/yomitoki
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+```
+
+## Usage
+
+Run from the repository root.
+
+```bash
+python3 scripts/run_checks.py --json /path/to/project > before.json
+# After modifying the target code, re-check under the same conditions
+python3 scripts/run_checks.py --json /path/to/project > after.json
+python3 scripts/compare_reports.py before.json after.json
+```
+
+Checks exit with code `1` when there are findings and `2` on execution failure. Comparison also returns `2` when the conditions do not match. For detailed settings, comparison methods, and exit codes, see [Batch Checks and Before/After Comparison](references/workflow-checks.md) (Japanese).
+
+To check only the syntax metrics without additional packages:
+
+```bash
+python3 scripts/check.py /path/to/project
+```
+
+The thresholds are initial settings for surfacing candidates for review. No findings does not guarantee appropriate naming or unchanged behavior. See also [Judgment Criteria](references/principles.md) and [Metric Definitions](references/mechanical-checks.md) (Japanese).
+
+## Testing
+
+```bash
+YOMITOKI_RUFF="$PWD/.venv/bin/ruff" python3 -B -m unittest discover -s tests -v
+.venv/bin/ruff check --isolated --no-cache --select E9,F scripts tests
+```
+
+On Python 3.9, one test for the `match` statement is skipped. On Python 3.10 or later, all cases run.
