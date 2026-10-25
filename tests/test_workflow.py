@@ -198,15 +198,26 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(module.find_ruff(None), str(bundled.resolve()))
         self.assertEqual(module.find_ruff('explicit-ruff'), 'explicit-ruff')
 
-    def test_ruff_failure_and_invalid_output_are_errors(self):
+    def fake_ruff(self, body):
+        script = self.root / 'fake_ruff.py'
+        script.write_text(f'import sys\nif "--version" in sys.argv:\n    print("ruff test")\n    sys.exit(0)\n{body}\n')
+        if os.name == 'nt':
+            # Windows cannot run a script by its shebang, so a batch file starts it.
+            fake = self.root / 'fake-ruff.cmd'
+            fake.write_text(f'@"{sys.executable}" "{script}" %*\n')
+            return fake
         fake = self.root / 'fake-ruff'
+        fake.write_text(f'#!{sys.executable}\n' + script.read_text())
+        fake.chmod(0o755)
+        return fake
+
+    def test_ruff_failure_and_invalid_output_are_errors(self):
         self.source.write_text('value = 1\n')
         for body in ['sys.exit(2)', 'print("not json")', 'print("{}")', 'print("[{}]"); sys.exit(1)']:
-            fake.write_text(f'#!{sys.executable}\nimport sys\nif "--version" in sys.argv:\n    print("ruff test")\n    sys.exit(0)\n{body}\n')
-            fake.chmod(0o755)
-            status, result = self.run_script('run_checks.py', '--ruff', fake, self.source)
+            status, result = self.run_script('run_checks.py', '--ruff', self.fake_ruff(body), self.source)
             self.assertEqual(status, 2)
             self.assertTrue(result['errors'])
+            self.assertEqual(result['ruff']['version'], 'ruff test', result['errors'])
             self.assertEqual(result['ruff']['filesChecked'], 0)
 
     def test_same_rule_moving_to_another_file_is_visible(self):
