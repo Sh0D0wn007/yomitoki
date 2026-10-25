@@ -227,6 +227,40 @@ class OtherLanguageTests(unittest.TestCase):
         unparsed = {item['path'].rsplit('/', 1)[1] for item in report['issues'] if item['rule'] == 'parse-error'}
         self.assertEqual(unparsed, {'sample.h', 'invalid.js'})
 
+    def test_header_is_cpp_only_with_cpp_declarations_at_line_start(self):
+        # new is a C identifier but a C++ keyword, so only the C grammar measures this function.
+        source = '// Like std::max, which is not a C++ sign in a comment.\nint larger(int new, int old) { return new > old ? new : old; }\n'
+        status, report = self.check({'sample.h': source})
+        self.assertEqual(status, 0, report['issues'])
+        self.assertEqual(set(report['parsers']), {'tree-sitter', 'tree-sitter-c'})
+        self.assertEqual([item['name'] for item in report['functions']], ['larger'])
+        for marker in ['namespace n {}', 'template<class T> T id(T t);', 'template <class T> T id(T t);', 'class A;', 'struct A {\n  public:\n};', 'private:', 'protected:']:
+            _, report = self.check({'sample.h': marker + '\n' + source})
+            self.assertEqual(set(report['parsers']), {'tree-sitter', 'tree-sitter-cpp'}, marker)
+
+    def test_fold_expressions_count_logical_operators(self):
+        source = 'template <class... T>\nbool all(T... a) { return (a && ...) && (... || a) && (a + ...); }\n'
+        _, report = self.check({'sample.cpp': source})
+        self.assertEqual(report['functions'][0]['complexity'], 5)
+
+    def test_typescript_variance_annotations_are_read(self):
+        source = (
+            'interface Box<in out T, out U = string> { value: T; other: U }\n'
+            'type Sink<in\n  T> = (value: T) => void;\n'
+            'class Store<out T extends object> {\n'
+            '  find(o: Record<string, T>, out: number): number {\n'
+            '    for (const k in o) { if (k) { return out; } }\n'
+            '    return out;\n'
+            '  }\n'
+            '}\n'
+        )
+        status, report = self.check({'sample.ts': source, 'sample.tsx': source, 'broken.ts': 'let out = (;\n'})
+        self.assertEqual(status, 1)
+        self.assertEqual({Path(item['path']).name for item in report['issues']}, {'broken.ts'})
+        self.assertEqual(len(report['functions']), 2)
+        for metrics in report['functions']:
+            self.assertEqual((metrics['name'], metrics['line'], metrics['params'], metrics['depth'], metrics['complexity']), ('find', 5, 2, 2, 3))
+
 
 @unittest.skipIf(TREE_SITTER, 'tree-sitter is installed')
 class MissingParserTests(unittest.TestCase):

@@ -40,11 +40,13 @@ python3 /path/to/yomitoki/scripts/check.py --max-lines 60 --max-depth 4 /path/to
 
 | 言語 | 拡張子 |
 | --- | --- |
-| C | `.c` |
-| C++ | `.cc`・`.cpp`・`.cxx`・`.h`・`.hh`・`.hpp`・`.hxx`（`.h`はC++として解析する） |
+| C | `.c`・`.h`（C++の宣言がないもの） |
+| C++ | `.cc`・`.cpp`・`.cxx`・`.h`（C++の宣言があるもの）・`.hh`・`.hpp`・`.hxx` |
 | Java | `.java` |
 | JavaScript | `.js`・`.jsx`・`.mjs`・`.cjs` |
 | TypeScript | `.ts`・`.mts`・`.cts`・`.tsx` |
+
+`.h`はCとC++で共用されるため、ファイルの中身で解析する言語を決める。行頭（インデントは可）に`namespace`・`template<`（`template <`を含む）・`class 名前`・`public:`・`private:`・`protected:`のいずれかがあればC++、なければCとして解析する。`::`は、Cのヘッダーでもコメントに`std::`などと書かれるため判定に使わない。
 
 ルールの意味はPythonにそろえ、各言語の構文を次のように対応させる。
 
@@ -52,10 +54,12 @@ python3 /path/to/yomitoki/scripts/check.py --max-lines 60 --max-depth 4 /path/to
 - `max-lines`：関数の構文の開始行から末尾まで。前の行にある戻り値の型・注釈・デコレーターも含む。複数行の文字列やテンプレートリテラルは含む。
 - `max-params`：宣言された引数の数。既定値付き・可変長（`...`）・TypeScriptの`this`を含む。Cの`(void)`は0。
 - `max-depth`：if・ループ（do-whileを含む）・switch・try・with・Javaのsynchronizedのブロック深さ。`else if`は同じ深さ、`else { if }`は一段深い。catch/finallyはtryと同じ深さ。波括弧のない本体も数える。
-- `max-complexity`：初期値1に、if・ループ・三項演算子・catch・`default`以外のcaseを各1、`&&`・`||`・`??`の数を加える。`#if`などのプリプロセッサ条件はコンパイル時の分岐なので数えない。
+- `max-complexity`：初期値1に、if・ループ・三項演算子・catch・`default`以外のcaseを各1、`&&`・`||`・`??`の数を加える。C++の畳み込み式（`(a || ...)`・`(... && a)`など）も、演算子が`&&`か`||`なら1を加える。`#if`などのプリプロセッサ条件はコンパイル時の分岐なので数えない。
 - `no-nested-ternary`：三項演算子の内部に別の三項演算子が含まれる箇所。関数の境界でリセットする。
 
-tree-sitterが解析できない範囲は、`tool`が`tree-sitter`、`rule`が`parse-error`の指摘として位置を報告し、その範囲を含む関数は測定しない。終了コードは指摘ありの`1`になり、「指摘なし」には含めない。C・C++のマクロ（`#ifdef __cplusplus`で分けた`extern "C" {`など）や、文法パッケージより新しい構文（TypeScriptの`in`・`out`の変性注釈など）で起こる。実際の構文エラーとの区別はしないため、ビルド・型チェックで確認する。`parse-error`は許容リストで許容できない。Pythonは構文エラーなら不正なコードなので、従来どおりファイル全体を検査エラーにする。tree-sitterと文法パッケージがない環境では、該当ファイルが検査エラーになる。
+tree-sitterが解析できない範囲は、`tool`が`tree-sitter`、`rule`が`parse-error`の指摘として位置を報告し、その範囲を含む関数は測定しない。終了コードは指摘ありの`1`になり、「指摘なし」には含めない。C・C++のマクロ（`#ifdef __cplusplus`で分けた`extern "C" {`や、型の前に並べた`static`・`inline`相当のマクロなど）や、文法パッケージより新しい構文で起こる。実際の構文エラーとの区別はしないため、ビルド・型チェックで確認する。
+
+TypeScriptの変性注釈（`<in T>`・`<out T>`・`<in out T>`）は、固定しているtree-sitter-typescript 0.23.2が読めない。そのため構文木にエラーがあるときだけ、型引数の中のエラーの直前やエラーの先頭にある`in`・`out`を同じバイト数の空白に置き換えて解析し直す。行と列の位置は変わらない。`for (k in o)`や`out`という名前など、型引数の外のコードは置き換えない。ファイルは変更せず、`files`のSHA-256も元の内容で計算する。`parse-error`は許容リストで許容できない。Pythonは構文エラーなら不正なコードなので、従来どおりファイル全体を検査エラーにする。tree-sitterと文法パッケージがない環境では、該当ファイルが検査エラーになる。
 
 初期値は見直し候補を拾うための設定で、普遍的な基準ではない。関数の種類やコードの用途に合わせて、編集前にプロジェクトの基準を決める。長い宣言的な設定や単純な一覧などは、閾値超過だけを理由に分割しない。
 

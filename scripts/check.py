@@ -7,6 +7,7 @@ import io
 import json
 import os
 import platform
+import re
 import shlex
 import sys
 import tokenize
@@ -41,6 +42,9 @@ TREE_BLOCKS = TREE_LOOPS | {
 }
 TREE_BRANCHES = TREE_LOOPS | TREE_TERNARIES | {'if_statement', 'catch_clause', 'switch_case'}
 LOGICAL_OPERATORS = {'&&', '||', '??', 'and', 'or'}
+# '::' is not a C++ sign here: C headers mention std:: in comments.
+CPP_HEADER = re.compile(rb'^[ \t]*(namespace\b|template\s*<|class\s+\w|(public|private|protected)\s*:)', re.MULTILINE)
+VARIANCE = re.compile(rb'(in\s+)?(in|out)(?=\s|\Z)')
 
 
 def positive_int(value):
@@ -267,7 +271,7 @@ def measure_tree_function(function, path, lines, report):
             metrics['complexity'] += node.child_by_field_name('value') is not None
         elif node.type == 'switch_label':
             metrics['complexity'] += node.children[0].type != 'default'
-        elif node.type == 'binary_expression':
+        elif node.type in ('binary_expression', 'fold_expression'):
             operator = node.child_by_field_name('operator')
             metrics['complexity'] += operator is not None and operator.type in LOGICAL_OPERATORS
         for index, child in enumerate(node.children):
@@ -297,13 +301,59 @@ def check_tree_ternaries(node, path, report, depth=0, function=None):
         check_tree_ternaries(child, path, report, depth, function)
 
 
+def tree_language(path, raw):
+    # .h is shared by C and C++, and C headers read as C++ lose whole functions to parse errors.
+    if path.suffix == '.h' and not CPP_HEADER.search(raw):
+        return LANGUAGES['.c']
+    return LANGUAGES[path.suffix]
+
+
+def error_nodes(root):
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        if node.type == 'ERROR' or node.is_missing:
+            yield node
+        elif node.has_error:
+            stack.extend(node.children)
+
+
+def blank(source, start, end):
+    # Same byte count with newlines kept, so lines and columns do not move.
+    source[start:end] = re.sub(rb'\S', b' ', bytes(source[start:end]))
+
+
+def without_variance(root, raw):
+    # tree-sitter-typescript 0.23.2 cannot read the variance annotations <in T> and <out T>
+    # (upstream issue #370 is open, PR #364 is unmerged). Remove this once the grammar reads them.
+    source = bytearray(raw)
+    for node in error_nodes(root):
+        parent = node.parent
+        if node.type != 'ERROR' or parent is None or parent.type not in ('type_parameters', 'type_parameter'):
+            continue
+        previous = node.prev_named_sibling
+        if previous is not None and previous.text in (b'in', b'out'):
+            blank(source, previous.start_byte, previous.end_byte)
+        match = VARIANCE.match(node.text)
+        if match:
+            blank(source, node.start_byte, node.start_byte + match.end())
+    return bytes(source)
+
+
+def parse_tree(module, function, raw):
+    import tree_sitter
+    parser = tree_sitter.Parser(tree_sitter.Language(getattr(importlib.import_module(module), function)()))
+    root = parser.parse(raw).root_node
+    if module == 'tree_sitter_typescript' and root.has_error:
+        root = parser.parse(without_variance(root, raw)).root_node
+    return root
+
+
 def inspect_tree_file(path, report):
-    module, function = LANGUAGES[path.suffix]
     try:
-        import tree_sitter
-        grammar = getattr(importlib.import_module(module), function)()
         raw = path.read_bytes()
-        root = tree_sitter.Parser(tree_sitter.Language(grammar)).parse(raw).root_node
+        module, function = tree_language(path, raw)
+        root = parse_tree(module, function, raw)
     except ImportError as error:
         report['errors'].append({
             'path': str(path), 'line': None,
@@ -322,17 +372,12 @@ def inspect_tree_file(path, report):
             lines.update(range(node.start_point[0] + 1, node.end_point[0] + 2))
     # Unlike Python, a parse error here usually means macros or newer syntax the grammar cannot read,
     # so the rest of the file is still measured and the unreadable parts are reported as findings.
-    stack = [root]
-    while stack:
-        node = stack.pop()
-        if node.type == 'ERROR' or node.is_missing:
-            line, column = position(node)
-            report['issues'].append({
-                'tool': 'tree-sitter', 'path': str(path), 'line': line, 'column': column, 'rule': 'parse-error',
-                'message': '構文を解析できない範囲（含まれる関数は未測定）',
-            })
-        elif node.has_error:
-            stack.extend(node.children)
+    for node in error_nodes(root):
+        line, column = position(node)
+        report['issues'].append({
+            'tool': 'tree-sitter', 'path': str(path), 'line': line, 'column': column, 'rule': 'parse-error',
+            'message': '構文を解析できない範囲（含まれる関数は未測定）',
+        })
     for node in walk_tree(root):
         if node.type in TREE_FUNCTIONS and not node.has_error:
             measure_tree_function(node, path, lines, report)
