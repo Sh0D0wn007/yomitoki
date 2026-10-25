@@ -12,7 +12,7 @@ A skill for AI agents that reduces the time it takes to understand code. It is w
 
 **Demo video: Before and after improvements in real code**
 
-https://github.com/user-attachments/assets/a002b50b-675d-4812-821b-24724cc1409c
+https://github.com/user-attachments/assets/1c9d27cf-d481-47d6-bb6b-0ae146cda7e0
 
 Using a pelican animation as an example, the video compares real code before and after separating drawing order from implementation details and improving names. It also shows changes in function count and lines of code, along with the scope of verification.
 
