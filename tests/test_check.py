@@ -213,6 +213,11 @@ class OtherLanguageTests(unittest.TestCase):
         self.assertEqual([(item['rule'], item['function']) for item in report['issues']], [('no-nested-ternary', None)])
         self.assertEqual((report['functions'][0]['lines'], report['functions'][0]['params']), (3, 0))
 
+    def test_c_style_variadic_parameters_count_in_c_and_cpp(self):
+        source = 'int log_message(const char *format, ...) { return 0; }\n'
+        _, report = self.check({'sample.c': source, 'sample.cpp': source, 'sample.js': 'function f(format, ...rest) {}\n'})
+        self.assertEqual([item['params'] for item in report['functions']], [2, 2, 2])
+
     def test_preprocessor_conditions_are_not_runtime_branches(self):
         source = 'int f(int a) {\n#if A && (B || C)\n  if (a) { return 1; }\n#endif\n  return 0;\n}\n'
         _, report = self.check({'sample.c': source})

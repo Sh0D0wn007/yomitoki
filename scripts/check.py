@@ -233,8 +233,11 @@ def tree_params(node):
         if parameters is not None:
             if parameters.type == 'identifier':
                 return 1
-            # C's (void) declares no parameters.
-            return sum(not child.type.endswith('comment') and child.text != b'void' for child in parameters.named_children)
+            # C's (void) declares no parameters. C++ leaves a C-style ... as an unnamed node.
+            return sum(
+                child.type == '...' or child.is_named and not child.type.endswith('comment') and child.text != b'void'
+                for child in parameters.children
+            )
         node = node.child_by_field_name('declarator')
     return 0
 
