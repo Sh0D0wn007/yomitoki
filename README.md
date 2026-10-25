@@ -1,5 +1,3 @@
-
-https://github.com/user-attachments/assets/28d7a389-a9b0-4eb2-8a19-9d43e78d7d74
 <p align="center">
   <img src="assets/logo.svg" alt="yomitoki" width="560">
 </p>
