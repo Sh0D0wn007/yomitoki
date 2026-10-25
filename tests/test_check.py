@@ -229,7 +229,7 @@ class OtherLanguageTests(unittest.TestCase):
         self.assertEqual(status, 1, report['errors'])
         self.assertEqual(report['filesChecked'], 2)
         self.assertEqual([item['name'] for item in report['functions']], ['ok'])
-        unparsed = {item['path'].rsplit('/', 1)[1] for item in report['issues'] if item['rule'] == 'parse-error'}
+        unparsed = {Path(item['path']).name for item in report['issues'] if item['rule'] == 'parse-error'}
         self.assertEqual(unparsed, {'sample.h', 'invalid.js'})
 
     def test_header_is_cpp_only_with_cpp_declarations_at_line_start(self):

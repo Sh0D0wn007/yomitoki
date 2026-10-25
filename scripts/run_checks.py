@@ -23,7 +23,10 @@ def find_ruff(explicit):
 
 def execute(command, source=None):
     environment = {key: value for key, value in os.environ.items() if not key.startswith('RUFF_')}
-    result = subprocess.run(command, input=source, capture_output=True, text=True, timeout=60, check=False, env=environment)
+    # Bytes, not text mode: on Windows text mode turns \n into \r\n and encodes with the locale instead of UTF-8.
+    data = None if source is None else source.encode('utf-8')
+    result = subprocess.run(command, input=data, capture_output=True, timeout=60, check=False, env=environment)
+    result.stdout, result.stderr = result.stdout.decode('utf-8', 'replace'), result.stderr.decode('utf-8', 'replace')
     if result.returncode not in (0, 1):
         raise ValueError(f"Ruffの実行失敗 ({result.returncode}): {result.stderr.strip()}")
     return result

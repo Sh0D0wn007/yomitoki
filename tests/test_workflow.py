@@ -312,6 +312,13 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue(report['ruff']['version'].startswith('ruff '))
 
     @unittest.skipUnless(RUFF, 'Set YOMITOKI_RUFF for real Ruff integration tests')
+    def test_ruff_reads_crlf_and_utf8_sources_as_written(self):
+        for source in [b'value = 1\r\n', 'value = "日本語"\n'.encode('utf-8')]:
+            self.source.write_bytes(source)
+            status, report = self.run_script('run_checks.py', '--ruff', RUFF, self.source)
+            self.assertEqual(status, 0, (source, report['issues'], report['errors']))
+
+    @unittest.skipUnless(RUFF, 'Set YOMITOKI_RUFF for real Ruff integration tests')
     def test_suite_pass_does_not_imply_project_checks_passed(self):
         self.source.write_text('value = 1\n')
         options = ['--ruff', RUFF, self.source]
