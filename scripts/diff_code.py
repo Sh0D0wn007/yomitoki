@@ -8,6 +8,8 @@ from pathlib import Path
 import platform
 import tokenize
 
+from check import use_utf8_output
+
 
 CATEGORIES = {
     'definitions': {'FunctionDef', 'AsyncFunctionDef', 'ClassDef'},
@@ -122,6 +124,7 @@ def compare(before, after):
 
 
 def main():
+    use_utf8_output()
     parser = argparse.ArgumentParser(description='Python source differences for review; not equivalence proof.')
     parser.add_argument('before', type=Path)
     parser.add_argument('after', type=Path)

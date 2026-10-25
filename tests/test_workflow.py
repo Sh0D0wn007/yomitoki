@@ -22,7 +22,7 @@ class WorkflowTests(unittest.TestCase):
     def run_script(self, name, *args):
         result = subprocess.run(
             [sys.executable, '-B', str(SCRIPTS / name), '--json', *map(str, args)],
-            capture_output=True, text=True, check=False,
+            capture_output=True, encoding='utf-8', check=False,
         )
         self.assertTrue(result.stdout, result.stderr)
         return result.returncode, json.loads(result.stdout)
@@ -34,7 +34,7 @@ class WorkflowTests(unittest.TestCase):
     def run_text(self, name, *args):
         return subprocess.run(
             [sys.executable, '-B', str(SCRIPTS / name), *map(str, args)],
-            capture_output=True, text=True, check=False,
+            capture_output=True, encoding='utf-8', check=False,
         )
 
     def write_accepted(self, *entries):
@@ -293,7 +293,7 @@ class WorkflowTests(unittest.TestCase):
         environment = dict(os.environ, RUFF_OUTPUT_FILE=str(output), RUFF_OUTPUT_FORMAT='concise')
         result = subprocess.run(
             [sys.executable, '-B', str(SCRIPTS / 'run_checks.py'), '--json', '--ruff', RUFF, str(self.source)],
-            capture_output=True, text=True, env=environment,
+            capture_output=True, encoding='utf-8', env=environment,
         )
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertFalse(output.exists())

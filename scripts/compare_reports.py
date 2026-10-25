@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 import sys
 
-from check import ACCEPTABLE_RULES, DEFAULT_LIMITS
+from check import ACCEPTABLE_RULES, DEFAULT_LIMITS, use_utf8_output
 
 METRICS = ('lines', 'params', 'depth', 'complexity')
 STATUS_MESSAGES = {
@@ -201,6 +201,7 @@ def print_comparison(result):
 
 
 def main():
+    use_utf8_output()
     parser = argparse.ArgumentParser(description='検査レポートの条件・範囲・指摘数・関数指標を比較します。')
     parser.add_argument('before', type=Path)
     parser.add_argument('after', type=Path)

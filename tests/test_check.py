@@ -25,7 +25,7 @@ class CheckTests(unittest.TestCase):
                 path.write_text(content)
             result = subprocess.run(
                 [sys.executable, str(SCRIPT), '--json', *options, str(root)],
-                capture_output=True, text=True, check=False,
+                capture_output=True, encoding='utf-8', check=False,
             )
             for name, content in files.items():
                 self.assertEqual((root / name).read_text(), content)
@@ -97,7 +97,7 @@ class CheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'link.py'
             path.symlink_to(SCRIPT)
-            result = subprocess.run([sys.executable, str(SCRIPT), '--json', str(path)], capture_output=True, text=True)
+            result = subprocess.run([sys.executable, str(SCRIPT), '--json', str(path)], capture_output=True, encoding='utf-8')
             self.assertEqual(result.returncode, 2)
             self.assertTrue(json.loads(result.stdout)['skipped'])
 
@@ -113,8 +113,8 @@ class CheckTests(unittest.TestCase):
             path = Path(directory) / 'sample.py'
             path.write_text('def f(a,b,c,d,e):\n    return a\n')
             args = [sys.executable, str(SCRIPT), '--json', directory, str(path)]
-            first = subprocess.run(args, capture_output=True, text=True)
-            second = subprocess.run(args, capture_output=True, text=True)
+            first = subprocess.run(args, capture_output=True, encoding='utf-8')
+            second = subprocess.run(args, capture_output=True, encoding='utf-8')
             self.assertEqual(first.returncode, 1)
             self.assertEqual(first.stdout, second.stdout)
             self.assertEqual(json.loads(first.stdout)['filesChecked'], 1)
@@ -123,7 +123,7 @@ class CheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'sample.py'
             path.write_bytes('# coding: cp932\nvalue = "日本語"\n'.encode('cp932'))
-            result = subprocess.run([sys.executable, str(SCRIPT), '--json', str(path)], capture_output=True, text=True)
+            result = subprocess.run([sys.executable, str(SCRIPT), '--json', str(path)], capture_output=True, encoding='utf-8')
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_async_comprehensions_and_exception_handlers(self):
@@ -157,6 +157,11 @@ class CheckTests(unittest.TestCase):
         status, report = self.check({'sample.py': 'raise RuntimeError("do not execute")\n'})
         self.assertEqual(status, 0)
         self.assertEqual(report['filesChecked'], 1)
+
+    def test_output_is_utf8_even_for_paths_the_locale_cannot_encode(self):
+        status, report = self.check({'絵文字_😀.py': 'value = 1\n'})
+        self.assertEqual(status, 0, report['errors'])
+        self.assertEqual(Path(report['files'][0]['path']).name, '絵文字_😀.py')
 
     def test_valid_file_does_not_hide_an_invalid_file(self):
         status, report = self.check({'valid.py': 'value = 1\n', 'invalid.py': 'def broken( {\n'})

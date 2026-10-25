@@ -16,9 +16,9 @@ class CodeDiffTests(unittest.TestCase):
                 path.write_bytes(source.encode('utf-8'))
             result = subprocess.run(
                 [sys.executable, '-B', str(SCRIPT), '--json', *map(str, paths)],
-                capture_output=True, text=True,
+                capture_output=True, encoding='utf-8',
             )
-            repeated = subprocess.run(result.args, capture_output=True, text=True)
+            repeated = subprocess.run(result.args, capture_output=True, encoding='utf-8')
             self.assertEqual(result.stdout, repeated.stdout)
             self.assertEqual(result.returncode, repeated.returncode)
             self.assertEqual([p.read_bytes() for p in paths],
@@ -36,7 +36,7 @@ class CodeDiffTests(unittest.TestCase):
             path = Path(directory) / 'same.py'
             path.write_text('value = 1\n')
             result = subprocess.run([sys.executable, '-B', str(SCRIPT), str(path), str(path)],
-                                    capture_output=True, text=True)
+                                    capture_output=True, encoding='utf-8')
         self.assertEqual(result.returncode, 0)
         for limitation in report['limitations']:
             self.assertIn(limitation, result.stdout)
@@ -92,7 +92,7 @@ class CodeDiffTests(unittest.TestCase):
             raw = '# coding: latin-1\nx="é"\n'.encode('latin-1')
             source.write_bytes(raw)
             result = subprocess.run([sys.executable, '-B', str(SCRIPT), '--json',
-                                     str(source), str(source)], capture_output=True, text=True)
+                                     str(source), str(source)], capture_output=True, encoding='utf-8')
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(source.read_bytes(), raw)
 
@@ -108,7 +108,7 @@ class CodeDiffTests(unittest.TestCase):
             paths = [Path(directory) / name for name in ('before.py', 'after.py')]
             paths[0].write_text('def circle(r):\n return r\n')
             paths[1].write_text('def circle(r):\n return r * 2\n')
-            result = subprocess.run([sys.executable, '-B', str(SCRIPT), *map(str, paths)], capture_output=True, text=True)
+            result = subprocess.run([sys.executable, '-B', str(SCRIPT), *map(str, paths)], capture_output=True, encoding='utf-8')
         self.assertIn('removed FunctionDef circle 1:1', result.stdout)
 
     def test_subscript_call_targets_are_not_emitted(self):
@@ -135,6 +135,6 @@ class CodeDiffTests(unittest.TestCase):
     def test_missing_input(self):
         result = subprocess.run([sys.executable, '-B', str(SCRIPT), '--json',
                                  '/missing-yomitoki-before.py', '/missing-yomitoki-after.py'],
-                                capture_output=True, text=True)
+                                capture_output=True, encoding='utf-8')
         self.assertEqual(result.returncode, 2)
         self.assertEqual(json.loads(result.stdout)['exitCode'], 2)

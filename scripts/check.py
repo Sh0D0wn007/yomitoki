@@ -501,7 +501,14 @@ def print_report(report, as_json):
         print('閾値内でも、命名・責務・仕様の正しさを保証するものではありません。')
 
 
+def use_utf8_output():
+    # The locale encoding (cp932 on Japanese Windows) cannot encode every path, so output is always UTF-8.
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8', errors='backslashreplace')
+
+
 def main():
+    use_utf8_output()
     parser = argparse.ArgumentParser(description='Python・C・C++・Java・JavaScript・TypeScriptの可読性に関する指標を構文解析で検査します。対象コードは実行・変更しません。')
     parser.add_argument('targets', nargs='+', help='ファイルまたはディレクトリ')
     parser.add_argument('--json', action='store_true', help='機械処理用JSONを出力')

@@ -9,7 +9,7 @@ import sys
 import tokenize
 from pathlib import Path
 
-from check import DEFAULT_LIMITS, build_report, load_accepted, positive_int, print_report
+from check import DEFAULT_LIMITS, build_report, load_accepted, positive_int, print_report, use_utf8_output
 
 RULES = 'F401,F841,SIM,RET'
 
@@ -108,6 +108,7 @@ def run_ruff(report, executable, profile):
 
 
 def main():
+    use_utf8_output()
     parser = argparse.ArgumentParser(description='構文指標と、PythonのRuff lint・整形を一括検査します（自動修正なし）。')
     parser.add_argument('targets', nargs='+')
     parser.add_argument('--json', action='store_true')
