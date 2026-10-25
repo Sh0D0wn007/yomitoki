@@ -82,6 +82,10 @@ def run_ruff(report, executable, profile):
         'version': None, 'profile': profile, 'filesChecked': 0,
         'runnerSha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
     }
+    # Ruff only covers Python; other languages get the syntax metrics alone.
+    files = [file for file in report['files'] if file['path'].endswith('.py')]
+    if not files:
+        return
     try:
         if not executable:
             raise ValueError('Ruffがありません。専用仮想環境へ導入するか --ruff で実行ファイルを指定してください')
@@ -93,7 +97,7 @@ def run_ruff(report, executable, profile):
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:
         report['errors'].append({'path': None, 'tool': 'ruff', 'message': str(error)})
         return
-    for file in report['files']:
+    for file in files:
         try:
             inspect_with_ruff(executable, file, profile, report)
         except (OSError, ValueError, LookupError, TypeError, UnicodeError, SyntaxError, subprocess.TimeoutExpired) as error:
@@ -101,7 +105,7 @@ def run_ruff(report, executable, profile):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='構文指標・Ruff lint・整形を一括検査します（自動修正なし）。')
+    parser = argparse.ArgumentParser(description='構文指標と、PythonのRuff lint・整形を一括検査します（自動修正なし）。')
     parser.add_argument('targets', nargs='+')
     parser.add_argument('--json', action='store_true')
     parser.add_argument('--ruff', help='Ruff実行ファイルのパス')

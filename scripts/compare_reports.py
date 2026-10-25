@@ -81,9 +81,11 @@ def validate_report(report):
         require(isinstance(ruff, dict) and isinstance(ruff.get('profile'), dict), 'Ruff設定がありません')
         require(is_digest(ruff.get('runnerSha256')), 'Ruff実行スクリプトのハッシュがありません')
         require(is_integer(ruff.get('filesChecked')), 'Ruffの検査件数が不正です')
-        if not report['errors']:
+        python_paths = [path for path in paths if path.endswith('.py')]
+        if not report['errors'] and python_paths:
             require(isinstance(ruff.get('version'), str) and ruff['version'].startswith('ruff '), 'Ruffのバージョンがありません')
-            require(ruff['filesChecked'] == len(paths), 'Ruffで未検査のファイルがあります')
+        if not report['errors']:
+            require(ruff['filesChecked'] == len(python_paths), 'Ruffで未検査のファイルがあります')
 
 
 def findings(report):
@@ -121,10 +123,10 @@ def compare(before, after):
         'counts': delta(len(findings(before)), len(findings(after))),
         'ruleChanges': [], 'metricChanges': [],
     }
-    for key in ('kind', 'pythonVersion', 'checkerSha256', 'limits'):
-        if before[key] != after[key]:
+    for key in ('kind', 'pythonVersion', 'checkerSha256', 'parsers', 'limits'):
+        if before.get(key) != after.get(key):
             result['conditionChanges'].append(key)
-            result['conditionDetails'][key] = {'before': before[key], 'after': after[key]}
+            result['conditionDetails'][key] = {'before': before.get(key), 'after': after.get(key)}
     if before['kind'] == after['kind'] == 'yomitoki-suite':
         for key in ('version', 'profile', 'runnerSha256'):
             if before['ruff'][key] != after['ruff'][key]:

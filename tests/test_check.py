@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import subprocess
 import sys
@@ -6,6 +7,12 @@ import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts' / 'check.py'
+TREE_SITTER = importlib.util.find_spec('tree_sitter') is not None
+NESTED = '''{
+  if (a) { for ({int} i = 0; i < b; i++) { while (b) { if (a && b) { b--; } } } }
+  return a ? 1 : 2;
+}
+'''
 
 
 class CheckTests(unittest.TestCase):
@@ -76,7 +83,7 @@ class CheckTests(unittest.TestCase):
             self.assertTrue(report['errors'])
 
     def test_empty_or_unsupported_targets_do_not_pass(self):
-        for files in [{}, {'sample.ts': 'const value = 1;'}]:
+        for files in [{}, {'sample.txt': 'value = 1'}]:
             status, report = self.check(files)
             self.assertEqual(status, 2)
             self.assertEqual(report['filesChecked'], 0)
@@ -156,6 +163,79 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertEqual(report['filesChecked'], 1)
         self.assertEqual(len(report['errors']), 1)
+
+
+@unittest.skipUnless(TREE_SITTER, 'requires tree-sitter from requirements.txt (Python 3.10+)')
+class OtherLanguageTests(unittest.TestCase):
+    check = CheckTests.check
+
+    def test_languages_share_the_python_rules(self):
+        files = {
+            'sample.c': 'int f(int a, int b) ' + NESTED.replace('{int}', 'int'),
+            'sample.cpp': 'int f(int a, int b) ' + NESTED.replace('{int}', 'int'),
+            'Sample.java': 'class Sample {\n  int f(int a, int b) ' + NESTED.replace('{int}', 'int') + '}\n',
+            'sample.js': 'function f(a, b) ' + NESTED.replace('{int}', 'let'),
+            'sample.ts': 'function f(a: number, b: number): number ' + NESTED.replace('{int}', 'let'),
+        }
+        status, report = self.check(files)
+        self.assertEqual(status, 1, report['errors'])
+        self.assertEqual(report['filesChecked'], 5)
+        for metrics in report['functions']:
+            self.assertEqual((metrics['name'], metrics['params'], metrics['depth'], metrics['complexity']), ('f', 2, 4, 7))
+        self.assertEqual(len([item for item in report['issues'] if item['rule'] == 'max-depth']), 5)
+        self.assertEqual(set(report['parsers']), {'tree-sitter', 'tree-sitter-c', 'tree-sitter-cpp', 'tree-sitter-java', 'tree-sitter-javascript', 'tree-sitter-typescript'})
+
+    def test_else_if_is_flat_but_else_block_if_nests(self):
+        body = 'if (a) { a = 1; } else if (b) { a = 2; } else { if (b) { a = 3; } }'
+        for name, source in [
+            ('sample.c', f'void f(int a, int b) {{ {body} }}'),
+            ('Sample.java', f'class Sample {{ void f(int a, boolean b) {{ {body} }} }}'),
+            ('sample.js', f'function f(a, b) {{ {body} }}'),
+        ]:
+            _, report = self.check({name: source})
+            self.assertEqual(report['functions'][0]['depth'], 2, name)
+            self.assertEqual(report['functions'][0]['complexity'], 4, name)
+
+    def test_nested_functions_are_measured_separately(self):
+        source = 'const outer = (a) => {\n  const inner = (b) => { if (b) { if (b) { return 1; } } };\n  return inner(a);\n};\n'
+        status, report = self.check({'sample.js': source})
+        self.assertEqual(status, 0)
+        metrics = {item['name']: item for item in report['functions']}
+        self.assertEqual((metrics['outer']['depth'], metrics['outer']['lines']), (0, 4))
+        self.assertEqual((metrics['inner']['depth'], metrics['inner']['params']), (2, 1))
+
+    def test_nested_ternary_comments_and_void_parameters(self):
+        status, report = self.check({
+            'sample.ts': 'const value = a ? (b ? 1 : 2) : 3;\n',
+            'sample.c': 'int f(void) {\n  /* if if if */\n\n  return 0;\n}\n',
+        })
+        self.assertEqual(status, 1)
+        self.assertEqual([(item['rule'], item['function']) for item in report['issues']], [('no-nested-ternary', None)])
+        self.assertEqual((report['functions'][0]['lines'], report['functions'][0]['params']), (3, 0))
+
+    def test_preprocessor_conditions_are_not_runtime_branches(self):
+        source = 'int f(int a) {\n#if A && (B || C)\n  if (a) { return 1; }\n#endif\n  return 0;\n}\n'
+        _, report = self.check({'sample.c': source})
+        self.assertEqual((report['functions'][0]['complexity'], report['functions'][0]['depth']), (2, 1))
+
+    def test_unparsed_ranges_are_findings_and_skip_only_their_functions(self):
+        source = '#ifdef __cplusplus\nextern "C" {\n#endif\nint ok(int a) { return a; }\nint broken(int a) { MACRO_BEGIN return a; }\n#ifdef __cplusplus\n}\n#endif\n'
+        status, report = self.check({'sample.h': source, 'invalid.js': 'function broken( {\n'})
+        self.assertEqual(status, 1, report['errors'])
+        self.assertEqual(report['filesChecked'], 2)
+        self.assertEqual([item['name'] for item in report['functions']], ['ok'])
+        unparsed = {item['path'].rsplit('/', 1)[1] for item in report['issues'] if item['rule'] == 'parse-error'}
+        self.assertEqual(unparsed, {'sample.h', 'invalid.js'})
+
+
+@unittest.skipIf(TREE_SITTER, 'tree-sitter is installed')
+class MissingParserTests(unittest.TestCase):
+    check = CheckTests.check
+
+    def test_missing_parser_is_an_error(self):
+        status, report = self.check({'sample.ts': 'const value = 1;\n'})
+        self.assertEqual(status, 2)
+        self.assertIn('tree_sitter', report['errors'][0]['message'])
 
 
 if __name__ == '__main__':

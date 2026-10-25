@@ -6,7 +6,7 @@
 python3 /path/to/yomitoki/scripts/run_checks.py /path/to/project
 ```
 
-`run_checks.py`は既存の構文指標検査と、Ruffの次の検査を実行する。
+`run_checks.py`は既存の構文指標検査と、Pythonファイルに対するRuffの次の検査を実行する。Python以外のファイルは構文指標だけを検査し、Pythonファイルがなければ Ruffは不要。Python以外を含む場合は、`requirements.txt`を導入したスキル直下の`.venv/bin/python`で実行する。
 
 - `F401`：未使用import
 - `F841`：未使用のローカル変数
@@ -114,7 +114,7 @@ python3 /path/to/yomitoki/scripts/compare_reports.py --json before.json after.js
 - 指摘数の合計と、ファイル・ツール・ルールごとの増減。どちらも許容した指摘を含めて数えるため、許容を増やしても減少とは表示しない
 - 許容した指摘の件数の増減（どちらかのレポートで`--accepted`を使った場合）
 - 各ファイル内の関数指標の最大値（行数・引数数・深さ・複雑さ）の変化と、関数数の変化
-- 閾値、Python/Ruffのバージョン、検査スクリプトのハッシュ、Ruff設定の変更
+- 閾値、Python/Ruff/tree-sitterのバージョン、検査スクリプトのハッシュ、Ruff設定の変更
 - 検査済みファイルの追加・除外、探索時の除外ディレクトリやシンボリックリンクの変更
 
 ファイルは同じ絶対パスで対応付ける。異なるチェックアウトや改名は追加・除外として表示し、自動で同じファイルと推測しない。行番号の移動は指摘の増減に数えない。そのため、同じファイル・同じルールの指摘が別の箇所へ移った場合は、件数が同じなら増減なしとなる。詳細位置は元のJSONで確認する。
@@ -152,15 +152,15 @@ python3 /path/to/yomitoki/scripts/run_checks.py src/c.py
 
 説明的な名前による行の折り返しやdocstring追加でも行数は増える。`1` の場合は増加理由と可読性への影響を確認し、数値だけのために説明を削らない。`2` の場合は未完了の理由を解消するか、未検証として報告する。
 
-一括検査JSONは構文検査のJSONに`ruff`（バージョン、設定、整形コマンドなど）と、検査範囲を示す `scope` を加える。検査の成功は `errors`・`issues`・`exitCode` で確認する。Ruffの指摘は`tool`、`rule`、`message`と位置を持つ。ASTの列位置はUTF-8バイト単位、Ruffの列位置はRuffが出力した値をそのまま使う。整形指摘の位置`1:1`はファイル全体を表す。
+一括検査JSONは構文検査のJSONに`ruff`（バージョン、設定、整形コマンドなど）と、検査範囲を示す `scope` を加える。検査の成功は `errors`・`issues`・`exitCode` で確認する。Ruffの指摘と、Python以外で構文を解析できない範囲（`parse-error`）の指摘は`tool`、`rule`、`message`と位置を持つ。ASTの列位置はUTF-8バイト単位、Ruffの列位置はRuffが出力した値をそのまま使う。整形指摘の位置`1:1`はファイル全体を表す。
 
 ## スクリプトの検証
 
 ```bash
 YOMITOKI_RUFF=/path/to/yomitoki/.venv/bin/ruff \
-  python3 -B -m unittest discover -s /path/to/yomitoki/tests -v
+  /path/to/yomitoki/.venv/bin/python -B -m unittest discover -s /path/to/yomitoki/tests -v
 ```
 
-`YOMITOKI_RUFF`を指定しないと実Ruffを使う結合テストはスキップされる。Python 3.9では`match`構文のテストもスキップされる。
+`YOMITOKI_RUFF`を指定しないと実Ruffを使う結合テストはスキップされる。Python 3.9では`match`構文のテストも、tree-sitterがなければ他言語のテストもスキップされる。
 
 外部ツールの根拠：[Ruffルール](https://docs.astral.sh/ruff/rules/)、[Ruffの設定](https://docs.astral.sh/ruff/configuration/)、[Ruff Formatter](https://docs.astral.sh/ruff/formatter/)。

@@ -1,6 +1,8 @@
 import argparse
 import ast
 import hashlib
+import importlib
+import importlib.metadata
 import io
 import json
 import os
@@ -17,6 +19,28 @@ SCOPES = FUNCTIONS + (ast.ClassDef, ast.Lambda)
 BLOCKS = {'If', 'For', 'AsyncFor', 'While', 'With', 'AsyncWith', 'Try', 'TryStar', 'Match'}
 ACCEPTABLE_RULES = (*DEFAULT_LIMITS, 'no-nested-ternary')
 ACCEPTED_KEYS = {'path', 'function', 'rule', 'actual', 'reason'}
+# Other languages are parsed by tree-sitter (grammar package, language function).
+LANGUAGES = {
+    '.c': ('tree_sitter_c', 'language'),
+    **dict.fromkeys(('.cc', '.cpp', '.cxx', '.h', '.hh', '.hpp', '.hxx'), ('tree_sitter_cpp', 'language')),
+    '.java': ('tree_sitter_java', 'language'),
+    **dict.fromkeys(('.js', '.jsx', '.mjs', '.cjs'), ('tree_sitter_javascript', 'language')),
+    **dict.fromkeys(('.ts', '.mts', '.cts'), ('tree_sitter_typescript', 'language_typescript')),
+    '.tsx': ('tree_sitter_typescript', 'language_tsx'),
+}
+TREE_FUNCTIONS = {
+    'function_definition', 'lambda_expression', 'method_declaration', 'constructor_declaration',
+    'compact_constructor_declaration', 'function_declaration', 'function_expression',
+    'generator_function_declaration', 'generator_function', 'arrow_function', 'method_definition',
+}
+TREE_TERNARIES = {'conditional_expression', 'ternary_expression'}
+TREE_LOOPS = {'for_statement', 'for_in_statement', 'enhanced_for_statement', 'for_range_loop', 'while_statement', 'do_statement'}
+TREE_BLOCKS = TREE_LOOPS | {
+    'if_statement', 'switch_statement', 'switch_expression', 'try_statement',
+    'try_with_resources_statement', 'synchronized_statement', 'with_statement',
+}
+TREE_BRANCHES = TREE_LOOPS | TREE_TERNARIES | {'if_statement', 'catch_clause', 'switch_case'}
+LOGICAL_OPERATORS = {'&&', '||', '??', 'and', 'or'}
 
 
 def positive_int(value):
@@ -65,7 +89,7 @@ def collect_files(targets, report):
     def add(path):
         if path.is_symlink():
             skip(path, 'symbolic-link')
-        elif path.suffix != '.py':
+        elif path.suffix != '.py' and path.suffix not in LANGUAGES:
             skip(path, 'unsupported-extension')
         elif path.is_file():
             files.add(path.resolve())
@@ -104,9 +128,9 @@ def code_lines(source):
     return lines
 
 
-def issue(report, path, node, rule, actual, limit, function):
+def issue(report, path, line, column, rule, actual, limit, function):
     report['issues'].append({
-        'path': str(path), 'line': node.lineno, 'column': node.col_offset + 1,
+        'path': str(path), 'line': line, 'column': column,
         'rule': rule, 'actual': actual, 'limit': limit, 'function': function,
     })
 
@@ -129,7 +153,7 @@ def measure_function(function, path, lines, report):
             depth += 1
             metrics['depth'] = max(metrics['depth'], depth)
             if depth > report['limits']['max-depth']:
-                issue(report, path, node, 'max-depth', depth, report['limits']['max-depth'], function.name)
+                issue(report, path, node.lineno, node.col_offset + 1, 'max-depth', depth, report['limits']['max-depth'], function.name)
         if isinstance(node, (ast.If, ast.For, ast.AsyncFor, ast.While, ast.IfExp, ast.ExceptHandler)):
             metrics['complexity'] += 1
         elif isinstance(node, ast.BoolOp):
@@ -155,7 +179,7 @@ def measure_function(function, path, lines, report):
     report['functions'].append(metrics)
     for metric, rule in [('lines', 'max-lines'), ('params', 'max-params'), ('complexity', 'max-complexity')]:
         if metrics[metric] > report['limits'][rule]:
-            issue(report, path, function, rule, metrics[metric], report['limits'][rule], function.name)
+            issue(report, path, function.lineno, function.col_offset + 1, rule, metrics[metric], report['limits'][rule], function.name)
 
 
 def check_ternaries(node, path, report, depth=0, function=None):
@@ -166,12 +190,159 @@ def check_ternaries(node, path, report, depth=0, function=None):
     if isinstance(node, ast.IfExp):
         depth += 1
         if depth > 1:
-            issue(report, path, node, 'no-nested-ternary', depth, 1, function)
+            issue(report, path, node.lineno, node.col_offset + 1, 'no-nested-ternary', depth, 1, function)
     for child in ast.iter_child_nodes(node):
         check_ternaries(child, path, report, depth, function)
 
 
+def walk_tree(root):
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        yield node
+        stack.extend(reversed(node.children))
+
+
+def position(node):
+    # Index access: Point.row/.column corrupt memory in tree-sitter 0.26.0.
+    return node.start_point[0] + 1, node.start_point[1] + 1
+
+
+def tree_name(node):
+    # Declarations carry a name; anonymous functions take the name they are assigned to.
+    named = node.child_by_field_name('name')
+    if named is None and node.type == 'function_definition':
+        named = node.child_by_field_name('declarator')
+        while named is not None and named.child_by_field_name('declarator') is not None:
+            named = named.child_by_field_name('declarator')
+    if named is None and node.parent is not None:
+        fields = (node.parent.child_by_field_name(field) for field in ('name', 'property', 'key', 'left', 'declarator'))
+        named = next((item for item in fields if item is not None and item != node), None)
+    return named.text.decode('utf-8', 'replace') if named is not None else '<anonymous>'
+
+
+def tree_params(node):
+    while node is not None:
+        if node.child_by_field_name('parameter') is not None:
+            return 1
+        parameters = node.child_by_field_name('parameters')
+        if parameters is not None:
+            if parameters.type == 'identifier':
+                return 1
+            # C's (void) declares no parameters.
+            return sum(not child.type.endswith('comment') and child.text != b'void' for child in parameters.named_children)
+        node = node.child_by_field_name('declarator')
+    return 0
+
+
+def is_else_if(node):
+    # else if continues the chain like Python's elif instead of nesting.
+    parent = node.parent
+    return node.type == 'if_statement' and (
+        parent.type == 'else_clause'
+        or parent.type == 'if_statement' and parent.child_by_field_name('alternative') == node
+    )
+
+
+def measure_tree_function(function, path, lines, report):
+    line, column = position(function)
+    name = tree_name(function)
+    metrics = {
+        'path': str(path), 'line': line, 'name': name,
+        'lines': len(lines.intersection(range(line, function.end_point[0] + 2))),
+        'params': tree_params(function), 'depth': 0, 'complexity': 1,
+    }
+
+    def visit(node, depth=0):
+        if node.type in TREE_FUNCTIONS:
+            return
+        if node.type in TREE_BLOCKS and not is_else_if(node):
+            depth += 1
+            metrics['depth'] = max(metrics['depth'], depth)
+            if depth > report['limits']['max-depth']:
+                issue(report, path, *position(node), 'max-depth', depth, report['limits']['max-depth'], name)
+        if node.type in TREE_BRANCHES:
+            metrics['complexity'] += 1
+        elif node.type == 'case_statement':
+            metrics['complexity'] += node.child_by_field_name('value') is not None
+        elif node.type == 'switch_label':
+            metrics['complexity'] += node.children[0].type != 'default'
+        elif node.type == 'binary_expression':
+            operator = node.child_by_field_name('operator')
+            metrics['complexity'] += operator is not None and operator.type in LOGICAL_OPERATORS
+        for index, child in enumerate(node.children):
+            # Preprocessor conditions are decided at compile time; only the code they select counts.
+            if child.is_named and not (node.type.startswith('preproc_') and node.field_name_for_child(index) == 'condition'):
+                visit(child, depth)
+
+    body = function.child_by_field_name('body')
+    if body is not None:
+        visit(body)
+    report['functions'].append(metrics)
+    for metric, rule in [('lines', 'max-lines'), ('params', 'max-params'), ('complexity', 'max-complexity')]:
+        if metrics[metric] > report['limits'][rule]:
+            issue(report, path, line, column, rule, metrics[metric], report['limits'][rule], name)
+
+
+def check_tree_ternaries(node, path, report, depth=0, function=None):
+    if node.type == 'ERROR':
+        return
+    if node.type in TREE_FUNCTIONS:
+        depth, function = 0, tree_name(node)
+    if node.type in TREE_TERNARIES:
+        depth += 1
+        if depth > 1:
+            issue(report, path, *position(node), 'no-nested-ternary', depth, 1, function)
+    for child in node.named_children:
+        check_tree_ternaries(child, path, report, depth, function)
+
+
+def inspect_tree_file(path, report):
+    module, function = LANGUAGES[path.suffix]
+    try:
+        import tree_sitter
+        grammar = getattr(importlib.import_module(module), function)()
+        raw = path.read_bytes()
+        root = tree_sitter.Parser(tree_sitter.Language(grammar)).parse(raw).root_node
+    except ImportError as error:
+        report['errors'].append({
+            'path': str(path), 'line': None,
+            'message': f'{error.name}がありません。requirements.txtを導入したPython 3.10以上で実行してください',
+        })
+        return
+    except OSError as error:
+        report['errors'].append({'path': str(path), 'line': None, 'message': str(error)})
+        return
+    for package in ('tree-sitter', module.replace('_', '-')):
+        report['parsers'][package] = importlib.metadata.version(package)
+    report['files'].append({'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest()})
+    lines = set()
+    for node in walk_tree(root):
+        if not node.child_count and not node.type.endswith('comment'):
+            lines.update(range(node.start_point[0] + 1, node.end_point[0] + 2))
+    # Unlike Python, a parse error here usually means macros or newer syntax the grammar cannot read,
+    # so the rest of the file is still measured and the unreadable parts are reported as findings.
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        if node.type == 'ERROR' or node.is_missing:
+            line, column = position(node)
+            report['issues'].append({
+                'tool': 'tree-sitter', 'path': str(path), 'line': line, 'column': column, 'rule': 'parse-error',
+                'message': '構文を解析できない範囲（含まれる関数は未測定）',
+            })
+        elif node.has_error:
+            stack.extend(node.children)
+    for node in walk_tree(root):
+        if node.type in TREE_FUNCTIONS and not node.has_error:
+            measure_tree_function(node, path, lines, report)
+    check_tree_ternaries(root, path, report)
+
+
 def inspect_file(path, report):
+    if path.suffix != '.py':
+        inspect_tree_file(path, report)
+        return
     try:
         raw = path.read_bytes()
         encoding, _ = tokenize.detect_encoding(io.BytesIO(raw).readline)
@@ -219,7 +390,7 @@ def build_report(targets, limits, accepted=None):
     report = {
         'schemaVersion': 1, 'kind': 'yomitoki', 'pythonVersion': platform.python_version(),
         'checkerSha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        'limits': limits, 'files': [], 'filesChecked': 0, 'functions': [],
+        'parsers': {}, 'limits': limits, 'files': [], 'filesChecked': 0, 'functions': [],
         'issues': [], 'errors': [], 'skipped': [],
     }
     paths = collect_files(targets, report)
@@ -227,7 +398,7 @@ def build_report(targets, limits, accepted=None):
         inspect_file(path, report)
     report['filesChecked'] = len(report['files'])
     if not report['filesChecked']:
-        report['errors'].append({'path': None, 'message': '検査できたPythonファイルがありません'})
+        report['errors'].append({'path': None, 'message': '検査できたファイルがありません'})
     report['functions'].sort(key=lambda item: (item['path'], item['line']))
     report['issues'].sort(key=lambda item: (item['path'], item['line'], item['column'], item['rule']))
     report['skipped'].sort(key=lambda item: (item['path'], item['reason']))
@@ -262,10 +433,12 @@ def print_report(report, as_json):
     else:
         print(f"検査: {report['filesChecked']}ファイル / 指摘: {len(report['issues'])} / エラー: {len(report['errors'])}")
         if 'scope' in report:
-            print('付属検査の範囲: 構文指標・Ruff lint (' + ','.join(report['scope']['ruffRules']) + ')・整形')
+            print('付属検査の範囲: 構文指標・Ruff lint (' + ','.join(report['scope']['ruffRules']) + ')・整形（RuffはPythonのみ）')
             print('プロジェクトの検査: 未実行（既存設定のlint・型チェック・テスト・ビルドは別途実行）')
         print('閾値: ' + json.dumps(report['limits'], ensure_ascii=False))
-        if 'ruff' in report:
+        if 'ruff' in report and not any(file['path'].endswith('.py') for file in report['files']):
+            print('Ruff: 未実行（対象のPythonファイルなし）')
+        elif 'ruff' in report:
             print(f"Ruff: {report['ruff']['version']} / 検査完了: {report['ruff']['filesChecked']}ファイル")
         for item in report['issues']:
             detail = item.get('message') or f"実測={item['actual']} 上限={item['limit']}"
@@ -281,8 +454,8 @@ def print_report(report, as_json):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Pythonコードの可読性に関する指標を構文解析で検査します。対象コードは実行・変更しません。')
-    parser.add_argument('targets', nargs='+', help='Pythonファイルまたはディレクトリ')
+    parser = argparse.ArgumentParser(description='Python・C・C++・Java・JavaScript・TypeScriptの可読性に関する指標を構文解析で検査します。対象コードは実行・変更しません。')
+    parser.add_argument('targets', nargs='+', help='ファイルまたはディレクトリ')
     parser.add_argument('--json', action='store_true', help='機械処理用JSONを出力')
     parser.add_argument('--accepted', type=load_accepted, help='理由付きで許容する構文指標の指摘（JSON）')
     for rule, default in DEFAULT_LIMITS.items():

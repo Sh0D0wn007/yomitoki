@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import os
 import shlex
@@ -117,7 +118,7 @@ class WorkflowTests(unittest.TestCase):
 
     def test_python_or_checker_changes_are_detected(self):
         before = self.scan('value = 1\n')
-        for key, value in [('pythonVersion', '0.0.0'), ('checkerSha256', '0' * 64)]:
+        for key, value in [('pythonVersion', '0.0.0'), ('checkerSha256', '0' * 64), ('parsers', {'tree-sitter': '0.0.0'})]:
             after = dict(before, **{key: value})
             status, result = self.compare(before, after)
             self.assertEqual(status, 2)
@@ -160,6 +161,17 @@ class WorkflowTests(unittest.TestCase):
         output = self.run_text('run_checks.py', *options).stdout
         self.assertIn('付属検査の範囲:', output)
         self.assertIn('プロジェクトの検査: 未実行', output)
+
+    def test_ruff_is_not_required_without_python_files(self):
+        source = self.root / 'sample.c'
+        source.write_text('int f(int a) { return a; }\n')
+        status, report = self.run_script('run_checks.py', '--ruff', self.root / 'missing', source)
+        if importlib.util.find_spec('tree_sitter') is None:
+            self.assertEqual(status, 2)
+            return
+        self.assertEqual(status, 0, report['errors'])
+        self.assertEqual(report['ruff']['filesChecked'], 0)
+        self.assertEqual(self.compare(report, report)[0], 0)
 
     def test_ruff_failure_and_invalid_output_are_errors(self):
         fake = self.root / 'fake-ruff'

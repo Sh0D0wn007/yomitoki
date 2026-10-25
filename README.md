@@ -8,7 +8,7 @@
 
 # yomitoki
 
-コードの理解にかかる時間を減らすための、AIエージェント向けスキルです。[Agent Skills](https://agentskills.io/) 形式の `SKILL.md` で書かれており、Claude Code・Codex・Gemini CLI・Cursor・GitHub Copilot などの対応エージェントで使えます。命名・制御フロー・変数・責務・コメント・テストの見直しに加え、Pythonの機械検査と修正前後の比較を行います。
+コードの理解にかかる時間を減らすための、AIエージェント向けスキルです。[Agent Skills](https://agentskills.io/) 形式の `SKILL.md` で書かれており、Claude Code・Codex・Gemini CLI・Cursor・GitHub Copilot などの対応エージェントで使えます。命名・制御フロー・変数・責務・コメント・テストの見直しに加え、Python・C・C++・Java・JavaScript・TypeScriptの機械検査と修正前後の比較を行います。
 
 **紹介動画：実コードで見る改善前後**
 
@@ -16,16 +16,24 @@ https://github.com/user-attachments/assets/1c9d27cf-d481-47d6-bb6b-0ae146cda7e0
 
 ペリカンのアニメーションを題材に、描画順と詳細の分離、命名の変更を実コードで比較します。関数数・コード行数の変化と、検証できた範囲も紹介しています。
 
-- `scripts/check.py`：関数の行数・引数数・ネスト・複雑さ・入れ子の三項式を検査
-- `scripts/run_checks.py`：構文指標、Ruff lint、整形を一括検査
+- `scripts/check.py`：関数の行数・引数数・ネスト・複雑さ・入れ子の三項式を検査（Python・C・C++・Java・JavaScript・TypeScript）
+- `scripts/run_checks.py`：構文指標と、PythonのRuff lint・整形を一括検査
 - `scripts/compare_reports.py`：検査条件・対象範囲・指摘数・指標の変化を比較
 - `scripts/diff_code.py`：変更前後のPythonソースから構造の変化と確認位置を抽出
 
 作業は「文脈と契約の確認 → 変更前の保存・機械検査 → 小さな修正 → 数値とソース差分の点検 → テスト」の順に進めます。差分検査の使い方は [変更内容の点検](references/change-review.md) を参照してください。
 
-## 他言語の機械検査
+## 対応言語
 
-C・C++はclang-tidy、JavaはPMD、JavaScript・TypeScriptはESLint・Biome・Oxlint、HTMLはHTML-validate、CSSはStylelintなど、対象プロジェクトの導入済みツールで検査します。選び方・実行例・変更前後の比較は [言語別の機械検査](references/language-checks.md) を参照してください。付属のPythonスクリプトはPython専用です。他言語ツールの導入や実行を自動化するものではありません。
+| 対象 | 付属スクリプト | 併用する導入済みツール |
+| --- | --- | --- |
+| Python | 構文指標・Ruff lint・整形 | プロジェクト既存のlint・型チェック |
+| C・C++ | 構文指標 | clang-tidy・Cppcheck |
+| Java | 構文指標 | PMD・Checkstyle |
+| JavaScript・TypeScript | 構文指標 | ESLint・Biome・Oxlint・tsc |
+| HTML・CSS | なし | HTML-validate・Stylelint |
+
+構文指標（関数の行数・引数数・ネスト・複雑さ・入れ子の三項演算子）は、Pythonでは標準ライブラリの`ast`、その他の言語では [tree-sitter](https://tree-sitter.github.io/) の構文木から同じ定義で測ります。Ruffに当たるlint・整形は、Python以外では対象プロジェクトの導入済みツールで検査します。付属スクリプトはこれらのツールを導入・実行しません。選び方・実行例・変更前後の比較は [言語別の機械検査](references/language-checks.md) を参照してください。
 
 ## セットアップ
 
@@ -65,9 +73,9 @@ ln -s ~/.agents/skills/yomitoki ~/.claude/skills/yomitoki
 
 上記以外の [Agent Skills 対応エージェント](https://agentskills.io/) では、各ドキュメントに記載されたスキルの配置先に置きます。既存のスキルがある場合は内容を確認し、バックアップしてから移行してください。スキルの指示は [SKILL.md](SKILL.md) にあります。`agents/openai.yaml` は Codex の画面表示用の任意設定です。
 
-### Pythonの検査を使う場合
+### 付属の検査を使う場合
 
-Python 3.9以上が必要です。対象コードの構文に対応したPythonを使用してください。仮想環境は移動すると動かなくなるため、配置した後のディレクトリで作成します。以下はプロジェクト単位でインストールした場合の例です。ユーザー全体にインストールした場合は `~/.agents/skills/yomitoki`、手動配置した場合はその配置先へ移動してください。
+Python 3.10以上を使用してください。Python以外の構文解析に使うtree-sitterはPython 3.10以上が必要です。Python 3.9ではPythonファイルだけを検査できます。Pythonを検査する場合は、対象コードの構文に対応したPythonを使用してください。仮想環境は移動すると動かなくなるため、配置した後のディレクトリで作成します。以下はプロジェクト単位でインストールした場合の例です。ユーザー全体にインストールした場合は `~/.agents/skills/yomitoki`、手動配置した場合はその配置先へ移動してください。
 
 ```bash
 cd .agents/skills/yomitoki
@@ -77,18 +85,18 @@ python3 -m venv .venv
 
 ## 実行
 
-リポジトリのルートで実行します。
+リポジトリのルートで、セットアップした`.venv`のPythonを使って実行します。
 
 ```bash
-python3 scripts/run_checks.py --json /path/to/project > before.json
+.venv/bin/python scripts/run_checks.py --json /path/to/project > before.json
 # 対象コードを修正した後、同じ条件で再検査
-python3 scripts/run_checks.py --json /path/to/project > after.json
-python3 scripts/compare_reports.py before.json after.json
+.venv/bin/python scripts/run_checks.py --json /path/to/project > after.json
+.venv/bin/python scripts/compare_reports.py before.json after.json
 ```
 
 検査は指摘ありで終了コード`1`、実行失敗で`2`を返します。比較は条件不一致も`2`です。詳しい設定、比較方法、終了コードは [一括検査と前後比較](references/workflow-checks.md) を参照してください。
 
-追加パッケージなしで構文指標だけを検査する場合：
+Pythonファイルの構文指標だけを、追加パッケージなしで検査する場合：
 
 ```bash
 python3 scripts/check.py /path/to/project
@@ -99,8 +107,8 @@ python3 scripts/check.py /path/to/project
 ## 検証
 
 ```bash
-YOMITOKI_RUFF="$PWD/.venv/bin/ruff" python3 -B -m unittest discover -s tests -v
+YOMITOKI_RUFF="$PWD/.venv/bin/ruff" .venv/bin/python -B -m unittest discover -s tests -v
 .venv/bin/ruff check --isolated --no-cache --select E9,F scripts tests
 ```
 
-Python 3.9では`match`構文のテストを1件スキップします。Python 3.10以上では全ケースを実行できます。
+Python 3.9では`match`構文のテストと、tree-sitterを使う他言語のテストをスキップします。Python 3.10以上で`requirements.txt`を導入すると全ケースを実行できます。

@@ -1,8 +1,8 @@
 ---
 name: yomitoki
-description: コードの理解にかかる時間を減らすため、命名・条件式・制御フロー・変数・責務・コメント・テストを見直す。「コードを読みやすく」「可読性を改善」「コードを綺麗に」と頼まれたときに使う。Pythonは付属スクリプト、C・C++・Java・JavaScript・TypeScript・HTML・CSSは言語別ツールで機械検査する。レビューでは改善案を示し、修正依頼では既存の挙動を保つ小さなリファクタリングを行う。
+description: コードの理解にかかる時間を減らすため、命名・条件式・制御フロー・変数・責務・コメント・テストを見直す。「コードを読みやすく」「可読性を改善」「コードを綺麗に」と頼まれたときに使う。Python・C・C++・Java・JavaScript・TypeScriptは付属スクリプトで構文指標を測り、lint・整形やHTML・CSSは言語別ツールで機械検査する。レビューでは改善案を示し、修正依頼では既存の挙動を保つ小さなリファクタリングを行う。
 metadata:
-  version: "1.2.1"
+  version: "1.3.0"
 ---
 
 # yomitoki
@@ -36,19 +36,21 @@ metadata:
 
 ## 言語に応じて先に機械検査する
 
-Pythonは以下の付属検査を使う。他言語は [言語別の機械検査](references/language-checks.md) の共通手順と、対象言語の資料だけを読み、既存の設定と導入済みツールを確認して、対象範囲を変更前後に検査する。
+Python・C・C++・Java・JavaScript・TypeScriptは、以下の付属検査で構文指標（関数の行数・引数数・ネスト・複雑さ・入れ子の三項演算子）を測る。PythonはRuffのlint・整形も付属検査に含む。Python以外のlint・整形・型チェックとHTML・CSSは、[言語別の機械検査](references/language-checks.md) の共通手順と対象言語の資料だけを読み、既存の設定と導入済みツールを確認して、対象範囲を変更前後に検査する。
 
 資料のない言語もプロジェクト既存の検査を優先する。ツールがない、設定が不足する、対応構文を解析できない場合は、検査できなかった範囲と理由を報告し、手動確認と区別する。
 
-### Python
+### 付属検査
 
-[scripts/run_checks.py](scripts/run_checks.py) で構文指標・Ruff lint・整形を検査する。実行方法・修正前後の比較・許容リスト・終了コードは [references/workflow-checks.md](references/workflow-checks.md)、構文指標の定義とRuffなしで使う [scripts/check.py](scripts/check.py) は [references/mechanical-checks.md](references/mechanical-checks.md) を読む。
+[scripts/run_checks.py](scripts/run_checks.py) で構文指標と、PythonのRuff lint・整形を検査する。実行方法・修正前後の比較・許容リスト・終了コードは [references/workflow-checks.md](references/workflow-checks.md)、構文指標の定義とRuffなしで使う [scripts/check.py](scripts/check.py) は [references/mechanical-checks.md](references/mechanical-checks.md) を読む。
 
 ```bash
-python3 /path/to/yomitoki/scripts/run_checks.py /path/to/project
+/path/to/yomitoki/.venv/bin/python /path/to/yomitoki/scripts/run_checks.py /path/to/project
 ```
 
-これはスキルの付属検査であり、Ruff lintは `F401,F841,SIM,RET` のみを独立した設定で調べる。プロジェクト既存のlint全体・型チェック・テスト・ビルドは実行しない。
+Python以外の構文解析にはtree-sitterを使うため、`requirements.txt`を導入したスキル直下の`.venv`のPythonで実行する。導入されていなければ該当ファイルは検査エラーになる。
+
+これはスキルの付属検査であり、Ruff lintはPythonファイルだけに `F401,F841,SIM,RET` を独立した設定で調べる。プロジェクト既存のlint全体・型チェック・テスト・ビルドは実行しない。
 
 測れる項目はスクリプトの結果を根拠にし、LLMの印象だけで行数や複雑さを断定しない。閾値はこのスキルの初期設定であり、普遍的な合格基準ではない。
 

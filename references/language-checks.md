@@ -1,15 +1,15 @@
 # 言語別の機械検査
 
-共通手順を確認し、対象言語の資料だけを読む。複数言語を編集する場合は、それぞれの資料を参照する。付属スクリプトはPython専用で、他言語は各資料に沿って導入済みツールを実行する。他言語の結果を付属スクリプトへ渡さない。
+共通手順を確認し、対象言語の資料だけを読む。複数言語を編集する場合は、それぞれの資料を参照する。付属スクリプトは下表の言語の構文指標（[定義](mechanical-checks.md)）と、PythonのRuff検査を行う。lint・整形・型チェックなどそれ以外の検査は、各資料に沿って導入済みツールを実行する。他言語ツールの結果を付属スクリプトへ渡さない。
 
 | 対象 | 検査資料 | 主なツール |
 | --- | --- | --- |
 | Python | [一括検査と比較](workflow-checks.md)、[構文指標](mechanical-checks.md) | 付属スクリプト・Ruff |
-| C | [Cの検査](c-checks.md) | clang-tidy・Cppcheck |
-| C++ | [C++の検査](cpp-checks.md) | clang-tidy・Cppcheck |
-| Java | [Javaの検査](java-checks.md) | PMD・Checkstyle・SpotBugs |
-| JavaScript | [JavaScriptの検査](javascript-checks.md) | ESLint・Biome・Oxlint |
-| TypeScript | [TypeScriptの検査](typescript-checks.md) | typescript-eslint・tsc |
+| C | [Cの検査](c-checks.md) | 付属スクリプト（構文指標）・clang-tidy・Cppcheck |
+| C++ | [C++の検査](cpp-checks.md) | 付属スクリプト（構文指標）・clang-tidy・Cppcheck |
+| Java | [Javaの検査](java-checks.md) | 付属スクリプト（構文指標）・PMD・Checkstyle・SpotBugs |
+| JavaScript | [JavaScriptの検査](javascript-checks.md) | 付属スクリプト（構文指標）・ESLint・Biome・Oxlint |
+| TypeScript | [TypeScriptの検査](typescript-checks.md) | 付属スクリプト（構文指標）・typescript-eslint・tsc |
 | HTML | [HTMLの検査](html-checks.md) | HTML-validate・HTMLHint・html-eslint |
 | CSS | [CSSの検査](css-checks.md) | Stylelint |
 
