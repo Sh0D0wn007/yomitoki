@@ -89,14 +89,19 @@ class CheckTests(unittest.TestCase):
             self.assertEqual(report['filesChecked'], 0)
             self.assertTrue(report['errors'])
 
-    def test_ignored_directories_and_symlinks_are_declared(self):
+    def test_ignored_directories_are_declared(self):
         status, report = self.check({'sample.py': 'value = 1\n', '.venv/generated.py': 'invalid code('})
         self.assertEqual(status, 0)
         self.assertEqual(report['filesChecked'], 1)
         self.assertTrue(any(item['path'].endswith('.venv') for item in report['skipped']))
+
+    def test_symlinks_are_declared_and_not_followed(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'link.py'
-            path.symlink_to(SCRIPT)
+            try:
+                path.symlink_to(SCRIPT)
+            except OSError:
+                self.skipTest('symbolic links need Developer Mode or administrator rights on Windows')
             result = subprocess.run([sys.executable, str(SCRIPT), '--json', str(path)], capture_output=True, encoding='utf-8')
             self.assertEqual(result.returncode, 2)
             self.assertTrue(json.loads(result.stdout)['skipped'])
