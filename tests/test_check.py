@@ -228,6 +228,14 @@ class OtherLanguageTests(unittest.TestCase):
         _, report = self.check({'sample.c': source, 'sample.cpp': source, 'sample.js': 'function f(format, ...rest) {}\n'})
         self.assertEqual([item['params'] for item in report['functions']], [2, 2, 2])
 
+    def test_returned_function_pointers_and_references_use_the_functions_own_parameters(self):
+        _, report = self.check({
+            'sample.c': 'int (*factory(int a, int b, int c, int d, int e))(int x) { return 0; }\n',
+            'sample.cpp': 'int& get(int a, int b) { return a; }\nint (&A::pick(int a))[3] { return t; }\n',
+        })
+        self.assertEqual([(item['name'], item['params']) for item in report['functions']], [('factory', 5), ('get', 2), ('A::pick', 1)])
+        self.assertEqual([(item['rule'], item['function']) for item in report['issues']], [('max-params', 'factory')])
+
     def test_preprocessor_conditions_are_not_runtime_branches(self):
         source = 'int f(int a) {\n#if A && (B || C)\n  if (a) { return 1; }\n#endif\n  return 0;\n}\n'
         _, report = self.check({'sample.c': source})

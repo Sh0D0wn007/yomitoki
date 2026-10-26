@@ -215,13 +215,20 @@ def position(node):
     return node.start_point[0] + 1, node.start_point[1] + 1
 
 
+def inner_declarator(node):
+    # Parenthesized and C++ reference declarators hold the next declarator without a field name.
+    if node.type in ('parenthesized_declarator', 'reference_declarator'):
+        return node.named_children[-1]
+    return node.child_by_field_name('declarator')
+
+
 def tree_name(node):
     # Declarations carry a name; anonymous functions take the name they are assigned to.
     named = node.child_by_field_name('name')
     if named is None and node.type == 'function_definition':
         named = node.child_by_field_name('declarator')
-        while named is not None and named.child_by_field_name('declarator') is not None:
-            named = named.child_by_field_name('declarator')
+        while named is not None and inner_declarator(named) is not None:
+            named = inner_declarator(named)
     if named is None and node.parent is not None:
         fields = (node.parent.child_by_field_name(field) for field in ('name', 'property', 'key', 'left', 'declarator'))
         named = next((item for item in fields if item is not None and item != node), None)
@@ -229,20 +236,20 @@ def tree_name(node):
 
 
 def tree_params(node):
+    # The parameters nearest the name are the function's own; outer ones belong to a returned function pointer.
+    count = 0
     while node is not None:
-        if node.child_by_field_name('parameter') is not None:
-            return 1
         parameters = node.child_by_field_name('parameters')
-        if parameters is not None:
-            if parameters.type == 'identifier':
-                return 1
+        if node.child_by_field_name('parameter') is not None or parameters is not None and parameters.type == 'identifier':
+            count = 1
+        elif parameters is not None:
             # C's (void) declares no parameters. C++ leaves a C-style ... as an unnamed node.
-            return sum(
+            count = sum(
                 child.type == '...' or child.is_named and not child.type.endswith('comment') and child.text != b'void'
                 for child in parameters.children
             )
-        node = node.child_by_field_name('declarator')
-    return 0
+        node = inner_declarator(node)
+    return count
 
 
 def is_else_if(node):
