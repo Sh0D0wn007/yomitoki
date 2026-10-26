@@ -412,7 +412,8 @@ def inspect_file(path, report):
         source = raw.decode(encoding)
         tree = ast.parse(source, filename=str(path))
         # ast.parse alone accepts some invalid contexts, such as return outside a function.
-        compile(tree, str(path), 'exec')
+        # Compiling source avoids recursion errors when compiling deep ASTs.
+        compile(source, str(path), 'exec')
         lines = code_lines(source)
     except (OSError, SyntaxError, UnicodeError, LookupError, ValueError, tokenize.TokenError, RecursionError) as error:
         report['errors'].append({

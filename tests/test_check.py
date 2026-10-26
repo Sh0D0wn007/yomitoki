@@ -76,11 +76,22 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(metrics['f']['complexity'], 4)
 
     def test_syntax_errors_do_not_pass(self):
-        for source in ['def broken( {', 'return 1\n']:
+        for source in ['def broken( {', 'return 1\n', 'break\n', 'continue\n',
+                       'await f()\n', 'def f():\n    nonlocal x\n']:
             status, report = self.check({'sample.py': source})
             self.assertEqual(status, 2)
             self.assertEqual(report['filesChecked'], 0)
             self.assertTrue(report['errors'])
+
+    def test_deep_expression_does_not_hide_context_syntax_error(self):
+        source = 'value = ' + '+'.join(['1'] * 1500) + '\nreturn 1\n'
+        status, report = self.check({'sample.py': source})
+        self.assertEqual(status, 2)
+        self.assertEqual(report['filesChecked'], 0)
+        errors = [item for item in report['errors'] if item['path'] and Path(item['path']).name == 'sample.py']
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0]['message'], "'return' outside function")
+        self.assertEqual(errors[0]['line'], 2)
 
     def test_empty_or_unsupported_targets_do_not_pass(self):
         for files in [{}, {'sample.txt': 'value = 1'}]:
