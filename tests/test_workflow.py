@@ -270,6 +270,17 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual((report['issues'][0]['actual'], report['issues'][0]['acceptedActual']), (8, 5))
         self.assertIn('許容時より悪化', self.run_text('check.py', '--accepted', accepted, self.source).stdout)
 
+    @unittest.skipUnless(importlib.util.find_spec('tree_sitter'), 'requires tree-sitter from requirements.txt (Python 3.10+)')
+    def test_unparsed_ranges_stay_findings_with_an_accepted_list(self):
+        source = self.root / 'sample.c'
+        source.write_text('int broken( {\n')
+        accepted = self.write_accepted()
+        for script in ['check.py', 'run_checks.py']:
+            status, report = self.run_script(script, '--accepted', accepted, source)
+            self.assertEqual(status, 1, script)
+            self.assertEqual([item['rule'] for item in report['issues']], ['parse-error'], script)
+            self.assertEqual(report['accepted'], [], script)
+
     def test_accepted_entries_need_a_reason_and_an_ast_rule(self):
         self.source.write_text('import os\n')
         for entry in [

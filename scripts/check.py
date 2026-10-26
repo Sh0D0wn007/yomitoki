@@ -429,7 +429,8 @@ def accept_issues(report, accepted):
     remaining = []
     report['accepted'] = []
     for item in report['issues']:
-        key = (item['path'], item['function'], item['rule'])
+        # parse-error findings have no function and are never acceptable, so they stay as findings.
+        key = (item['path'], item.get('function'), item['rule'])
         entry = entries.get(key)
         if entry is None:
             remaining.append(item)
