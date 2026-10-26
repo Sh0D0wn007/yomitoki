@@ -20,8 +20,15 @@ https://github.com/user-attachments/assets/1c9d27cf-d481-47d6-bb6b-0ae146cda7e0
 - `scripts/run_checks.py`：構文指標と、PythonのRuff lint・整形を一括検査
 - `scripts/compare_reports.py`：検査条件・対象範囲・指摘数・指標の変化を比較
 - `scripts/diff_code.py`：変更前後のPythonソースから構造の変化と確認位置を抽出
+- `scripts/review_session.py`：`begin` で現在のソースの退避と変更前検査、`finish` で変更後検査・比較・差分保存をまとめる（対象コードは変更・実行しない）
+
+退避先は `begin --state-root /path/outside/reviews` で対象外の親ディレクトリを渡すと、一意な子保存先が作成されます。既存の作業用親も使え、返された `stateDir` を `finish --state-dir` に渡せます。固定名の未作成パスには従来の `begin --state-dir` も使えます。PowerShellの初回からのUTF-8設定は [実行例](references/review-session.md) を参照してください。
 
 作業は「文脈と契約の確認 → 変更前の保存・機械検査 → 小さな修正 → 数値とソース差分の点検 → テスト」の順に進めます。コードはレビューでも修正でも [判断基準](references/principles.md) の14項目すべてに照らして確認し、指摘と変更には該当する項目の番号を付けて報告します。差分検査の使い方は [変更内容の点検](references/change-review.md) を参照してください。
+
+退避と前後検査をまとめる方法は [一括検査と比較](references/review-session.md) を参照してください。判断基準や検証範囲を保ち、同じ検査の表示し直しや変更のない状態での再検査を減らします。補助処理はプロジェクトのテスト・lint・型チェック・ビルドを実行しません。
+
+小さな対象では `begin --context` で全ソースと判断基準を一緒に読み、`finish --include-diffs` で全差分を一緒に受け取れます。14項目は個別に根拠を記録し、`--review-notes` で欠けた項目や未確認を検出します。記録の網羅性は判断の正しさを保証しません。
 
 ## 対応言語
 

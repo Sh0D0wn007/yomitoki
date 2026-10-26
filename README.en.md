@@ -20,8 +20,15 @@ Using a pelican animation as an example, the video compares real code before and
 - `scripts/run_checks.py`: Runs syntax metrics plus Ruff lint and format checks for Python in one pass
 - `scripts/compare_reports.py`: Compares check conditions, target scope, finding counts, and metric changes
 - `scripts/diff_code.py`: Extracts structural changes and locations to review from Python sources before and after a change
+- `scripts/review_session.py`: Combines current-source snapshots and before checks in `begin`, then after checks, comparison, and saved diffs in `finish` (never modifies or executes target code)
+
+Use `begin --state-root /path/outside/reviews` to create a unique session inside an outside-target parent directory, including an existing work directory. Pass the returned `stateDir` to `finish --state-dir`. The existing `begin --state-dir` option still accepts an exact path that does not yet exist. See the [execution examples](references/review-session.md) (Japanese) for UTF-8 settings from the first PowerShell call.
 
 Work proceeds in this order: "confirm context and contracts → save the original and run mechanical checks → make small fixes → inspect the metrics and source diff → test". For both reviews and fixes, the code is checked against all 14 items of the [Judgment Criteria](references/principles.md) (Japanese), and each finding and change is reported with the number of the item it concerns. For how to use the diff checks, see [Reviewing Changes](references/change-review.md) (Japanese).
+
+See [Combined checks and comparison](references/review-session.md) (Japanese) for the combined snapshot and checking workflow. It preserves the criteria and verification scope while avoiding repeated scans for a different display format or unchanged code. The helper does not run project tests, lint, type checks, or builds.
+
+For small targets, `begin --context` returns the full sources and criteria together, and `finish --include-diffs` returns all diffs together. Record evidence for each of the 14 criteria; `--review-notes` detects missing or unverified items. Complete records do not guarantee correct judgments.
 
 ## Supported languages
 

@@ -20,8 +20,15 @@ https://github.com/user-attachments/assets/07faee17-875c-49db-af98-2776743b523c
 - `scripts/run_checks.py`：一次性检查语法指标，以及 Python 的 Ruff lint 和格式
 - `scripts/compare_reports.py`：比较检查条件、目标范围、问题数量和指标的变化
 - `scripts/diff_code.py`：从修改前后的 Python 源码中提取结构变化和需要确认的位置
+- `scripts/review_session.py`：`begin` 合并保存当前源码和修改前检查，`finish` 合并修改后检查、比较及差异保存（不会修改或执行目标代码）
+
+使用 `begin --state-root /path/outside/reviews` 指定目标范围之外的父目录，即可自动创建唯一的会话子目录；父目录可以是已存在的工作目录。将返回的 `stateDir` 传给 `finish --state-dir`。原有的 `begin --state-dir` 仍可指定尚未创建的固定路径。PowerShell 首次调用的 UTF-8 设置见 [执行示例](references/review-session.md)（日语）。
 
 工作按照"确认上下文与约定 → 保存修改前的状态并进行机械检查 → 小幅修改 → 核对数值与源码差异 → 测试"的顺序进行。无论是审查还是修改，都会对照 [判断标准](references/principles.md)（日语）的全部 14 个项目检查代码，并在报告的问题和修改中注明对应项目的编号。差异检查的用法请参阅 [变更内容检查](references/change-review.md)（日语）。
+
+合并保存与前后检查的用法请参阅 [批量检查与比较](references/review-session.md)（日语）。保留判断标准与验证范围，减少仅为改变显示格式或在代码未变时重复运行检查。辅助脚本不会执行项目的测试、lint、类型检查或构建。
+
+对于较小的对象，`begin --context` 可同时返回完整源码和判断标准，`finish --include-diffs` 可同时返回全部差异。对14个项目分别记录依据，并用 `--review-notes` 检出缺失或未确认项。记录完整不代表判断一定正确。
 
 ## 支持的语言
 
