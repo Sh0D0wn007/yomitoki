@@ -12,7 +12,7 @@
 
 **介绍视频：通过实际代码对比改进前后**
 
-https://github.com/user-attachments/assets/1c9d27cf-d481-47d6-bb6b-0ae146cda7e0
+https://github.com/user-attachments/assets/07faee17-875c-49db-af98-2776743b523c
 
 以鹈鹕动画为例，通过实际代码对比绘制顺序与实现细节的分离，以及命名的修改。同时介绍函数数量、代码行数的变化和已验证的范围。
 
