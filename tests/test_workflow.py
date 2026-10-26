@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import os
 import shlex
@@ -21,7 +22,7 @@ class WorkflowTests(unittest.TestCase):
     def run_script(self, name, *args):
         result = subprocess.run(
             [sys.executable, '-B', str(SCRIPTS / name), '--json', *map(str, args)],
-            capture_output=True, text=True, check=False,
+            capture_output=True, encoding='utf-8', check=False,
         )
         self.assertTrue(result.stdout, result.stderr)
         return result.returncode, json.loads(result.stdout)
@@ -33,7 +34,7 @@ class WorkflowTests(unittest.TestCase):
     def run_text(self, name, *args):
         return subprocess.run(
             [sys.executable, '-B', str(SCRIPTS / name), *map(str, args)],
-            capture_output=True, text=True, check=False,
+            capture_output=True, encoding='utf-8', check=False,
         )
 
     def write_accepted(self, *entries):
@@ -46,6 +47,18 @@ class WorkflowTests(unittest.TestCase):
         for path, report in zip(paths, [before, after]):
             path.write_text(json.dumps(report))
         return self.run_script('compare_reports.py', *paths)
+
+    def test_reports_and_accepted_lists_saved_as_utf16_or_with_bom_are_read(self):
+        report = self.scan('def f(a,b,c,d,e):\n    return a\n')
+        paths = [self.root / 'before.json', self.root / 'after.json']
+        for encoding in ['utf-16', 'utf-8-sig']:
+            for path in paths:
+                path.write_bytes(json.dumps(report, ensure_ascii=False).encode(encoding))
+            status, result = self.run_script('compare_reports.py', *paths)
+            self.assertEqual(status, 0, (encoding, result['errors']))
+            accepted = self.write_accepted({'path': 'sample.py', 'function': 'f', 'rule': 'max-params', 'actual': 5, 'reason': '理由'})
+            accepted.write_bytes(accepted.read_bytes().decode('utf-8').encode(encoding))
+            self.assertEqual(self.run_script('check.py', '--accepted', accepted, self.source)[0], 0, encoding)
 
     def test_comparison_reports_measured_reduction(self):
         before = self.scan('def f(a,b,c,d,e):\n    return a\n')
@@ -117,7 +130,7 @@ class WorkflowTests(unittest.TestCase):
 
     def test_python_or_checker_changes_are_detected(self):
         before = self.scan('value = 1\n')
-        for key, value in [('pythonVersion', '0.0.0'), ('checkerSha256', '0' * 64)]:
+        for key, value in [('pythonVersion', '0.0.0'), ('checkerSha256', '0' * 64), ('parsers', {'tree-sitter': '0.0.0'})]:
             after = dict(before, **{key: value})
             status, result = self.compare(before, after)
             self.assertEqual(status, 2)
@@ -161,15 +174,50 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('付属検査の範囲:', output)
         self.assertIn('プロジェクトの検査: 未実行', output)
 
-    def test_ruff_failure_and_invalid_output_are_errors(self):
+    def test_ruff_is_not_required_without_python_files(self):
+        source = self.root / 'sample.c'
+        source.write_text('int f(int a) { return a; }\n')
+        status, report = self.run_script('run_checks.py', '--ruff', self.root / 'missing', source)
+        if importlib.util.find_spec('tree_sitter') is None:
+            self.assertEqual(status, 2)
+            return
+        self.assertEqual(status, 0, report['errors'])
+        self.assertEqual(report['ruff']['filesChecked'], 0)
+        self.assertEqual(self.compare(report, report)[0], 0)
+
+    def test_bundled_ruff_is_found_in_the_platform_virtual_environment(self):
+        sys.path.insert(0, str(SCRIPTS))
+        self.addCleanup(sys.path.remove, str(SCRIPTS))
+        spec = importlib.util.spec_from_file_location('run_checks', SCRIPTS / 'run_checks.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.__file__ = str(self.root / 'scripts' / 'run_checks.py')
+        bundled = self.root / '.venv' / ('Scripts/ruff.exe' if os.name == 'nt' else 'bin/ruff')
+        bundled.parent.mkdir(parents=True)
+        bundled.write_text('')
+        self.assertEqual(module.find_ruff(None), str(bundled.resolve()))
+        self.assertEqual(module.find_ruff('explicit-ruff'), 'explicit-ruff')
+
+    def fake_ruff(self, body):
+        script = self.root / 'fake_ruff.py'
+        script.write_text(f'import sys\nif "--version" in sys.argv:\n    print("ruff test")\n    sys.exit(0)\n{body}\n')
+        if os.name == 'nt':
+            # Windows cannot run a script by its shebang, so a batch file starts it.
+            fake = self.root / 'fake-ruff.cmd'
+            fake.write_text(f'@"{sys.executable}" "{script}" %*\n')
+            return fake
         fake = self.root / 'fake-ruff'
+        fake.write_text(f'#!{sys.executable}\n' + script.read_text())
+        fake.chmod(0o755)
+        return fake
+
+    def test_ruff_failure_and_invalid_output_are_errors(self):
         self.source.write_text('value = 1\n')
         for body in ['sys.exit(2)', 'print("not json")', 'print("{}")', 'print("[{}]"); sys.exit(1)']:
-            fake.write_text(f'#!{sys.executable}\nimport sys\nif "--version" in sys.argv:\n    print("ruff test")\n    sys.exit(0)\n{body}\n')
-            fake.chmod(0o755)
-            status, result = self.run_script('run_checks.py', '--ruff', fake, self.source)
+            status, result = self.run_script('run_checks.py', '--ruff', self.fake_ruff(body), self.source)
             self.assertEqual(status, 2)
             self.assertTrue(result['errors'])
+            self.assertEqual(result['ruff']['version'], 'ruff test', result['errors'])
             self.assertEqual(result['ruff']['filesChecked'], 0)
 
     def test_same_rule_moving_to_another_file_is_visible(self):
@@ -222,6 +270,17 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual((report['issues'][0]['actual'], report['issues'][0]['acceptedActual']), (8, 5))
         self.assertIn('許容時より悪化', self.run_text('check.py', '--accepted', accepted, self.source).stdout)
 
+    @unittest.skipUnless(importlib.util.find_spec('tree_sitter'), 'requires tree-sitter from requirements.txt (Python 3.10+)')
+    def test_unparsed_ranges_stay_findings_with_an_accepted_list(self):
+        source = self.root / 'sample.c'
+        source.write_text('int broken( {\n')
+        accepted = self.write_accepted()
+        for script in ['check.py', 'run_checks.py']:
+            status, report = self.run_script(script, '--accepted', accepted, source)
+            self.assertEqual(status, 1, script)
+            self.assertEqual([item['rule'] for item in report['issues']], ['parse-error'], script)
+            self.assertEqual(report['accepted'], [], script)
+
     def test_accepted_entries_need_a_reason_and_an_ast_rule(self):
         self.source.write_text('import os\n')
         for entry in [
@@ -236,6 +295,19 @@ class WorkflowTests(unittest.TestCase):
                 result = self.run_text('run_checks.py', '--json', '--accepted', self.write_accepted(entry), self.source)
                 self.assertEqual(result.returncode, 2)
                 self.assertIn('許容リスト', result.stderr)
+
+    def test_accepted_paths_take_either_separator_and_no_absolute_path(self):
+        source = self.root / 'sub' / 'sample.py'
+        source.parent.mkdir()
+        source.write_text('def f(a,b,c,d,e):\n    return a\n')
+        entry = {'function': 'f', 'rule': 'max-params', 'actual': 5, 'reason': '理由'}
+        for path in ['sub/sample.py', 'sub\\sample.py']:
+            status, report = self.run_script('check.py', '--accepted', self.write_accepted(dict(entry, path=path)), source)
+            self.assertEqual((status, len(report['accepted'])), (0, 1), path)
+        for path in ['/sub/sample.py', '\\sub\\sample.py', 'C:\\sub\\sample.py', 'C:sub/sample.py']:
+            result = self.run_text('check.py', '--accepted', self.write_accepted(dict(entry, path=path)), source)
+            self.assertEqual(result.returncode, 2, path)
+            self.assertIn('許容リスト', result.stderr)
 
     def test_accepting_a_finding_is_not_reported_as_a_reduction(self):
         source = 'def f(a,b,c,d,e):\n    return a\n'
@@ -281,7 +353,7 @@ class WorkflowTests(unittest.TestCase):
         environment = dict(os.environ, RUFF_OUTPUT_FILE=str(output), RUFF_OUTPUT_FORMAT='concise')
         result = subprocess.run(
             [sys.executable, '-B', str(SCRIPTS / 'run_checks.py'), '--json', '--ruff', RUFF, str(self.source)],
-            capture_output=True, text=True, env=environment,
+            capture_output=True, encoding='utf-8', env=environment,
         )
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertFalse(output.exists())
@@ -298,6 +370,13 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.source.read_text(), source)
         self.assertEqual(report['ruff']['filesChecked'], 1)
         self.assertTrue(report['ruff']['version'].startswith('ruff '))
+
+    @unittest.skipUnless(RUFF, 'Set YOMITOKI_RUFF for real Ruff integration tests')
+    def test_ruff_reads_crlf_and_utf8_sources_as_written(self):
+        for source in [b'value = 1\r\n', 'value = "日本語"\n'.encode('utf-8')]:
+            self.source.write_bytes(source)
+            status, report = self.run_script('run_checks.py', '--ruff', RUFF, self.source)
+            self.assertEqual(status, 0, (source, report['issues'], report['errors']))
 
     @unittest.skipUnless(RUFF, 'Set YOMITOKI_RUFF for real Ruff integration tests')
     def test_suite_pass_does_not_imply_project_checks_passed(self):

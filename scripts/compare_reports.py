@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 import sys
 
-from check import ACCEPTABLE_RULES, DEFAULT_LIMITS
+from check import ACCEPTABLE_RULES, DEFAULT_LIMITS, use_utf8_output
 
 METRICS = ('lines', 'params', 'depth', 'complexity')
 STATUS_MESSAGES = {
@@ -81,9 +81,11 @@ def validate_report(report):
         require(isinstance(ruff, dict) and isinstance(ruff.get('profile'), dict), 'Ruff設定がありません')
         require(is_digest(ruff.get('runnerSha256')), 'Ruff実行スクリプトのハッシュがありません')
         require(is_integer(ruff.get('filesChecked')), 'Ruffの検査件数が不正です')
-        if not report['errors']:
+        python_paths = [path for path in paths if path.endswith('.py')]
+        if not report['errors'] and python_paths:
             require(isinstance(ruff.get('version'), str) and ruff['version'].startswith('ruff '), 'Ruffのバージョンがありません')
-            require(ruff['filesChecked'] == len(paths), 'Ruffで未検査のファイルがあります')
+        if not report['errors']:
+            require(ruff['filesChecked'] == len(python_paths), 'Ruffで未検査のファイルがあります')
 
 
 def findings(report):
@@ -121,10 +123,10 @@ def compare(before, after):
         'counts': delta(len(findings(before)), len(findings(after))),
         'ruleChanges': [], 'metricChanges': [],
     }
-    for key in ('kind', 'pythonVersion', 'checkerSha256', 'limits'):
-        if before[key] != after[key]:
+    for key in ('kind', 'pythonVersion', 'checkerSha256', 'parsers', 'limits'):
+        if before.get(key) != after.get(key):
             result['conditionChanges'].append(key)
-            result['conditionDetails'][key] = {'before': before[key], 'after': after[key]}
+            result['conditionDetails'][key] = {'before': before.get(key), 'after': after.get(key)}
     if before['kind'] == after['kind'] == 'yomitoki-suite':
         for key in ('version', 'profile', 'runnerSha256'):
             if before['ruff'][key] != after['ruff'][key]:
@@ -199,14 +201,16 @@ def print_comparison(result):
 
 
 def main():
+    use_utf8_output()
     parser = argparse.ArgumentParser(description='検査レポートの条件・範囲・指摘数・関数指標を比較します。')
     parser.add_argument('before', type=Path)
     parser.add_argument('after', type=Path)
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args()
     try:
-        before = json.loads(args.before.read_text(encoding='utf-8'))
-        after = json.loads(args.after.read_text(encoding='utf-8'))
+        # Windows PowerShell 5.1 saves redirected output as UTF-16; json detects UTF-8/16/32 and BOMs from bytes.
+        before = json.loads(args.before.read_bytes())
+        after = json.loads(args.after.read_bytes())
         result = compare(before, after)
     except (OSError, UnicodeError, ValueError, TypeError, KeyError) as error:
         result = {'schemaVersion': 1, 'comparable': False, 'errors': [str(error)], 'exitCode': 2,

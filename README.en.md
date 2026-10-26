@@ -8,7 +8,7 @@
 
 # yomitoki
 
-A skill for AI agents that reduces the time it takes to understand code. It is written as a `SKILL.md` in the [Agent Skills](https://agentskills.io/) format and works with compatible agents such as Claude Code, Codex, Gemini CLI, Cursor, and GitHub Copilot. In addition to reviewing naming, control flow, variables, responsibilities, comments, and tests, it runs mechanical checks on Python code and compares the results before and after changes.
+A skill for AI agents that reduces the time it takes to understand code. It is written as a `SKILL.md` in the [Agent Skills](https://agentskills.io/) format and works with compatible agents such as Claude Code, Codex, Gemini CLI, Cursor, and GitHub Copilot. In addition to reviewing naming, control flow, variables, responsibilities, comments, and tests, it runs mechanical checks on Python, C, C++, Java, JavaScript, and TypeScript code and compares the results before and after changes.
 
 **Demo video: Before and after improvements in real code**
 
@@ -16,16 +16,24 @@ https://github.com/user-attachments/assets/1c9d27cf-d481-47d6-bb6b-0ae146cda7e0
 
 Using a pelican animation as an example, the video compares real code before and after separating drawing order from implementation details and improving names. It also shows changes in function count and lines of code, along with the scope of verification.
 
-- `scripts/check.py`: Checks function length, argument count, nesting, complexity, and nested ternary expressions
-- `scripts/run_checks.py`: Runs syntax metrics, Ruff lint, and format checks in one pass
+- `scripts/check.py`: Checks function length, argument count, nesting, complexity, and nested ternary expressions (Python, C, C++, Java, JavaScript, TypeScript)
+- `scripts/run_checks.py`: Runs syntax metrics plus Ruff lint and format checks for Python in one pass
 - `scripts/compare_reports.py`: Compares check conditions, target scope, finding counts, and metric changes
 - `scripts/diff_code.py`: Extracts structural changes and locations to review from Python sources before and after a change
 
-Work proceeds in this order: "confirm context and contracts → save the original and run mechanical checks → make small fixes → inspect the metrics and source diff → test". For how to use the diff checks, see [Reviewing Changes](references/change-review.md) (Japanese).
+Work proceeds in this order: "confirm context and contracts → save the original and run mechanical checks → make small fixes → inspect the metrics and source diff → test". For both reviews and fixes, the code is checked against all 14 items of the [Judgment Criteria](references/principles.md) (Japanese), and each finding and change is reported with the number of the item it concerns. For how to use the diff checks, see [Reviewing Changes](references/change-review.md) (Japanese).
 
-## Mechanical checks for other languages
+## Supported languages
 
-Use tools already installed in the target project: clang-tidy for C/C++, PMD for Java, ESLint, Biome, or Oxlint for JavaScript/TypeScript, HTML-validate for HTML, and Stylelint for CSS. TypeScript projects can also use typescript-eslint. See [Language-specific checks](references/language-checks.md) (Japanese) for selection, commands, and before/after comparison. The bundled Python scripts only analyze Python; they do not install or run tools for other languages.
+| Target | Bundled scripts | Installed tools to use alongside |
+| --- | --- | --- |
+| Python | Syntax metrics, Ruff lint, formatting | The project's existing lint and type checks |
+| C, C++ | Syntax metrics | clang-tidy, Cppcheck |
+| Java | Syntax metrics | PMD, Checkstyle |
+| JavaScript, TypeScript | Syntax metrics | ESLint, Biome, Oxlint, tsc |
+| HTML, CSS | None | HTML-validate, Stylelint |
+
+Syntax metrics (function length, argument count, nesting, complexity, nested ternaries) use the same definitions in every language: Python is measured with the standard library's `ast`, and the other languages with [tree-sitter](https://tree-sitter.github.io/) syntax trees. For languages other than Python, lint and formatting (Ruff's role) are checked with tools already installed in the target project; the bundled scripts do not install or run them. See [Language-specific checks](references/language-checks.md) (Japanese) for selection, commands, and before/after comparison.
 
 ## Setup
 
@@ -65,30 +73,48 @@ ln -s ~/.agents/skills/yomitoki ~/.claude/skills/yomitoki
 
 For other [Agent Skills-compatible agents](https://agentskills.io/), place it in the skills location described in each agent's documentation. If you already have an existing skill, review its contents and back it up before migrating. The skill's instructions are in [SKILL.md](SKILL.md). `agents/openai.yaml` is an optional setting for how the skill is displayed in Codex.
 
-### Using the Python checks
+### Using the bundled checks
 
-Python 3.9 or later is required. Use a Python version that supports the syntax of the target code. Virtual environments break when moved, so create one in the directory where you placed the skill. The example below assumes a per-project installation. For a global installation, use `~/.agents/skills/yomitoki`; for manual placement, use your chosen directory.
+Use Python 3.10 or later. tree-sitter, which parses languages other than Python, requires Python 3.10 or later; on Python 3.9 only Python files can be checked. When checking Python, use a Python version that supports the syntax of the target code. Virtual environments break when moved, so create one in the directory where you placed the skill. The example below assumes a per-project installation. For a global installation, use `~/.agents/skills/yomitoki`; for manual placement, use your chosen directory.
+
+The `python3` that ships with macOS (from the Xcode Command Line Tools) may be 3.9. Check with `python3 --version`; if it is 3.9, create the virtual environment with Python 3.10 or later (for example, Homebrew's `python3.12`). With 3.9, tree-sitter is not installed and files other than Python fail to check.
+
+macOS and Linux:
 
 ```bash
 cd .agents/skills/yomitoki
+python3 --version
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
 
+Windows (PowerShell):
+
+```powershell
+cd .agents\skills\yomitoki
+python --version
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+On Windows, read `python3` in the following commands as `python`, and `.venv/bin/` as `.venv\Scripts\` (`.venv/Scripts/` in Git Bash).
+
 ## Usage
 
-Run from the repository root.
+Run from the repository root with the Python in the `.venv` you set up.
 
 ```bash
-python3 scripts/run_checks.py --json /path/to/project > before.json
+.venv/bin/python scripts/run_checks.py --json /path/to/project > before.json
 # After modifying the target code, re-check under the same conditions
-python3 scripts/run_checks.py --json /path/to/project > after.json
-python3 scripts/compare_reports.py before.json after.json
+.venv/bin/python scripts/run_checks.py --json /path/to/project > after.json
+.venv/bin/python scripts/compare_reports.py before.json after.json
 ```
+
+When saving with `>` in PowerShell, first run `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`. In Windows PowerShell 5.1, output containing Japanese is otherwise corrupted and cannot be compared.
 
 Checks exit with code `1` when there are findings and `2` on execution failure. Comparison also returns `2` when the conditions do not match. For detailed settings, comparison methods, and exit codes, see [Batch Checks and Before/After Comparison](references/workflow-checks.md) (Japanese).
 
-To check only the syntax metrics without additional packages:
+To check only the syntax metrics of Python files without additional packages:
 
 ```bash
 python3 scripts/check.py /path/to/project
@@ -98,9 +124,19 @@ The thresholds are initial settings for surfacing candidates for review. No find
 
 ## Testing
 
+macOS and Linux:
+
 ```bash
-YOMITOKI_RUFF="$PWD/.venv/bin/ruff" python3 -B -m unittest discover -s tests -v
+YOMITOKI_RUFF="$PWD/.venv/bin/ruff" .venv/bin/python -B -m unittest discover -s tests -v
 .venv/bin/ruff check --isolated --no-cache --select E9,F scripts tests
 ```
 
-On Python 3.9, one test for the `match` statement is skipped. On Python 3.10 or later, all cases run.
+Windows (PowerShell):
+
+```powershell
+$env:YOMITOKI_RUFF = "$PWD\.venv\Scripts\ruff.exe"
+.venv\Scripts\python.exe -B -m unittest discover -s tests -v
+.venv\Scripts\ruff.exe check --isolated --no-cache --select E9,F scripts tests
+```
+
+On Python 3.9, the `match` statement test and the tree-sitter tests for other languages are skipped. On Python 3.10 or later with `requirements.txt` installed, all cases run.

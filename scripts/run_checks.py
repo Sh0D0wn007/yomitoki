@@ -9,7 +9,7 @@ import sys
 import tokenize
 from pathlib import Path
 
-from check import DEFAULT_LIMITS, build_report, load_accepted, positive_int, print_report
+from check import DEFAULT_LIMITS, build_report, load_accepted, positive_int, print_report, use_utf8_output
 
 RULES = 'F401,F841,SIM,RET'
 
@@ -17,13 +17,18 @@ RULES = 'F401,F841,SIM,RET'
 def find_ruff(explicit):
     if explicit:
         return explicit
-    bundled = Path(__file__).resolve().parents[1] / '.venv' / 'bin' / 'ruff'
+    environment = Path(__file__).resolve().parents[1] / '.venv'
+    # Windows virtual environments keep executables in Scripts\ as .exe files.
+    bundled = environment / 'Scripts' / 'ruff.exe' if os.name == 'nt' else environment / 'bin' / 'ruff'
     return str(bundled) if bundled.is_file() else shutil.which('ruff')
 
 
 def execute(command, source=None):
     environment = {key: value for key, value in os.environ.items() if not key.startswith('RUFF_')}
-    result = subprocess.run(command, input=source, capture_output=True, text=True, timeout=60, check=False, env=environment)
+    # Bytes, not text mode: on Windows text mode turns \n into \r\n and encodes with the locale instead of UTF-8.
+    data = None if source is None else source.encode('utf-8')
+    result = subprocess.run(command, input=data, capture_output=True, timeout=60, check=False, env=environment)
+    result.stdout, result.stderr = result.stdout.decode('utf-8', 'replace'), result.stderr.decode('utf-8', 'replace')
     if result.returncode not in (0, 1):
         raise ValueError(f"Ruffの実行失敗 ({result.returncode}): {result.stderr.strip()}")
     return result
@@ -82,6 +87,10 @@ def run_ruff(report, executable, profile):
         'version': None, 'profile': profile, 'filesChecked': 0,
         'runnerSha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
     }
+    # Ruff only covers Python; other languages get the syntax metrics alone.
+    files = [file for file in report['files'] if file['path'].endswith('.py')]
+    if not files:
+        return
     try:
         if not executable:
             raise ValueError('Ruffがありません。専用仮想環境へ導入するか --ruff で実行ファイルを指定してください')
@@ -93,7 +102,7 @@ def run_ruff(report, executable, profile):
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:
         report['errors'].append({'path': None, 'tool': 'ruff', 'message': str(error)})
         return
-    for file in report['files']:
+    for file in files:
         try:
             inspect_with_ruff(executable, file, profile, report)
         except (OSError, ValueError, LookupError, TypeError, UnicodeError, SyntaxError, subprocess.TimeoutExpired) as error:
@@ -101,7 +110,8 @@ def run_ruff(report, executable, profile):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='構文指標・Ruff lint・整形を一括検査します（自動修正なし）。')
+    use_utf8_output()
+    parser = argparse.ArgumentParser(description='構文指標と、PythonのRuff lint・整形を一括検査します（自動修正なし）。')
     parser.add_argument('targets', nargs='+')
     parser.add_argument('--json', action='store_true')
     parser.add_argument('--ruff', help='Ruff実行ファイルのパス')

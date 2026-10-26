@@ -1,0 +1,2 @@
+# Mac and Windows checkouts get the same bytes, so checkerSha256 and runnerSha256 match across machines.
+* text=auto eol=lf

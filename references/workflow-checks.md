@@ -6,7 +6,7 @@
 python3 /path/to/yomitoki/scripts/run_checks.py /path/to/project
 ```
 
-`run_checks.py`は既存の構文指標検査と、Ruffの次の検査を実行する。
+`run_checks.py`は既存の構文指標検査と、Pythonファイルに対するRuffの次の検査を実行する。Python以外のファイルは構文指標だけを検査し、Pythonファイルがなければ Ruffは不要。Python以外を含む場合は、`requirements.txt`を導入したスキル直下の`.venv/bin/python`で実行する。Windowsでは、コマンドの`python3`を`python`に、`.venv/bin/`を`.venv\Scripts\`（Git Bashでは`.venv/Scripts/`）に読み替える。
 
 - `F401`：未使用import
 - `F841`：未使用のローカル変数
@@ -32,7 +32,7 @@ python3 /path/to/yomitoki/scripts/run_checks.py \
 
 ## Ruffの導入
 
-Ruffの検索順は`--ruff`で指定した実行ファイル、スキル直下の`.venv/bin/ruff`、`PATH`上の`ruff`。Pythonの`-m ruff`を自動探索することはない。検証済みバージョンは [../requirements.txt](../requirements.txt) に固定している。
+Ruffの検索順は`--ruff`で指定した実行ファイル、スキル直下の`.venv/bin/ruff`（Windowsでは`.venv\Scripts\ruff.exe`）、`PATH`上の`ruff`。Pythonの`-m ruff`を自動探索することはない。検証済みバージョンは [../requirements.txt](../requirements.txt) に固定している。
 
 ```bash
 python3 -m venv /path/to/yomitoki/.venv
@@ -52,6 +52,8 @@ python3 /path/to/yomitoki/scripts/run_checks.py \
 
 `run_checks.py`は対象を書き換えない。`format-required`が出ると、検査と同じRuff・設定で整形するコマンドを「同じ設定で整形するには:」の行に表示する。JSONでは`ruff.formatCommand`（ファイルを除いた引数の配列）に入る。
 
+表示するコマンドは、POSIXシェル（bash・zsh、WindowsではGit Bash）向けに引用符を付けている。PowerShell 7.3以降では、先頭に`& `を付ければそのまま実行できる。Windows PowerShell 5.1は引数の中の`"`を落とし、cmdは`'`を引用符として扱わないため、どちらでも動かない。その場合はGit Bashで実行するか、`ruff.formatCommand`の配列にファイルを加えて実行する。
+
 - プロジェクトに既存のフォーマッター設定があれば、そちらで整形する。表示されたコマンドで既存のスタイルを上書きしない。
 - 既存の設定がない場合や新規コードの場合は、表示されたコマンドをそのまま実行する。Ruffの場所や引数を推測して組み立てない。
 - 整形した後は`run_checks.py`を同じ引数で再実行し、`format-required`が消えたことを確かめる。
@@ -70,7 +72,7 @@ python3 /path/to/yomitoki/scripts/run_checks.py \
 python3 /path/to/yomitoki/scripts/run_checks.py --accepted accepted.json /path/to/project
 ```
 
-- `path`はリストファイルのあるディレクトリからの相対パス、`function`は関数名（関数の外の三項式は`null`）、`rule`はルール名、`actual`は許容した時点の実測値、`reason`は空にできない理由。項目はこの5つで、過不足があればエラーにする。
+- `path`はリストファイルのあるディレクトリからの相対パス（区切りは`/`と`\`のどちらでもよく、MacとWindowsで同じリストを使える。`/`や`C:`で始まる絶対パスはどのOSでもエラー）、`function`は関数名（関数の外の三項式は`null`）、`rule`はルール名、`actual`は許容した時点の実測値、`reason`は空にできない理由。項目はこの5つで、過不足があればエラーにする。
 - 照合は行番号を使わず、パス・関数名・ルールで行う。同じファイル内の同名の関数（別クラスの同名メソッドなど）は同じ項目に一致する。
 - 対象は構文指標（`max-*`、`no-nested-ternary`）だけ。Ruffのlintと整形は許容できない（`noqa`を無効にしているのと同じ方針）。
 - 一致し、実測値が`actual`以下の指摘は`issues`から`accepted`へ理由付きで移り、終了コードの判定から外れる。通常表示でも「許容済み: N件」と各指摘・理由を必ず表示する。
@@ -105,6 +107,8 @@ python3 /path/to/yomitoki/scripts/compare_reports.py before.json after.json
 python3 /path/to/yomitoki/scripts/compare_reports.py --json before.json after.json
 ```
 
+PowerShellで`>`を使って保存するときは、先に`[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`を実行する。Windows PowerShell 5.1では、実行しないと日本語を含む出力が壊れ、JSONとして読めなくなる。5.1は保存したファイルをUTF-16にするが、`compare_reports.py`はUTF-8・UTF-16・BOM付きのどれでも読める（許容リストも同じ）。
+
 検査コマンドは指摘があれば終了コード`1`を返すため、`&&`で比較処理を繋ぐとそこで止まる。JSONを保存したうえで、各結果を確認して次のコマンドを実行する。
 
 比較は`check.py`同士、または`run_checks.py`同士で行う。異なる種類を混ぜると比較条件不一致になる。検査器のハッシュを含まない旧レポートは再生成が必要。
@@ -114,7 +118,7 @@ python3 /path/to/yomitoki/scripts/compare_reports.py --json before.json after.js
 - 指摘数の合計と、ファイル・ツール・ルールごとの増減。どちらも許容した指摘を含めて数えるため、許容を増やしても減少とは表示しない
 - 許容した指摘の件数の増減（どちらかのレポートで`--accepted`を使った場合）
 - 各ファイル内の関数指標の最大値（行数・引数数・深さ・複雑さ）の変化と、関数数の変化
-- 閾値、Python/Ruffのバージョン、検査スクリプトのハッシュ、Ruff設定の変更
+- 閾値、Python/Ruff/tree-sitterのバージョン、検査スクリプトのハッシュ、Ruff設定の変更
 - 検査済みファイルの追加・除外、探索時の除外ディレクトリやシンボリックリンクの変更
 
 ファイルは同じ絶対パスで対応付ける。異なるチェックアウトや改名は追加・除外として表示し、自動で同じファイルと推測しない。行番号の移動は指摘の増減に数えない。そのため、同じファイル・同じルールの指摘が別の箇所へ移った場合は、件数が同じなら増減なしとなる。詳細位置は元のJSONで確認する。
@@ -152,15 +156,22 @@ python3 /path/to/yomitoki/scripts/run_checks.py src/c.py
 
 説明的な名前による行の折り返しやdocstring追加でも行数は増える。`1` の場合は増加理由と可読性への影響を確認し、数値だけのために説明を削らない。`2` の場合は未完了の理由を解消するか、未検証として報告する。
 
-一括検査JSONは構文検査のJSONに`ruff`（バージョン、設定、整形コマンドなど）と、検査範囲を示す `scope` を加える。検査の成功は `errors`・`issues`・`exitCode` で確認する。Ruffの指摘は`tool`、`rule`、`message`と位置を持つ。ASTの列位置はUTF-8バイト単位、Ruffの列位置はRuffが出力した値をそのまま使う。整形指摘の位置`1:1`はファイル全体を表す。
+一括検査JSONは構文検査のJSONに`ruff`（バージョン、設定、整形コマンドなど）と、検査範囲を示す `scope` を加える。検査の成功は `errors`・`issues`・`exitCode` で確認する。Ruffの指摘と、Python以外で構文を解析できない範囲（`parse-error`）の指摘は`tool`、`rule`、`message`と位置を持つ。ASTの列位置はUTF-8バイト単位、Ruffの列位置はRuffが出力した値をそのまま使う。整形指摘の位置`1:1`はファイル全体を表す。
 
 ## スクリプトの検証
 
 ```bash
 YOMITOKI_RUFF=/path/to/yomitoki/.venv/bin/ruff \
-  python3 -B -m unittest discover -s /path/to/yomitoki/tests -v
+  /path/to/yomitoki/.venv/bin/python -B -m unittest discover -s /path/to/yomitoki/tests -v
 ```
 
-`YOMITOKI_RUFF`を指定しないと実Ruffを使う結合テストはスキップされる。Python 3.9では`match`構文のテストもスキップされる。
+Windows（PowerShell）：
+
+```powershell
+$env:YOMITOKI_RUFF = "C:\path\to\yomitoki\.venv\Scripts\ruff.exe"
+C:\path\to\yomitoki\.venv\Scripts\python.exe -B -m unittest discover -s C:\path\to\yomitoki\tests -v
+```
+
+`YOMITOKI_RUFF`を指定しないと実Ruffを使う結合テストはスキップされる。Python 3.9では`match`構文のテストも、tree-sitterがなければ他言語のテストもスキップされる。
 
 外部ツールの根拠：[Ruffルール](https://docs.astral.sh/ruff/rules/)、[Ruffの設定](https://docs.astral.sh/ruff/configuration/)、[Ruff Formatter](https://docs.astral.sh/ruff/formatter/)。

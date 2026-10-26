@@ -14,6 +14,8 @@ python3 /path/to/yomitoki/scripts/diff_code.py \
   "$review_dir/before.py" /path/to/project/module.py
 ```
 
+Windows では Git Bash で実行し、`python3` を `python` に読み替える。
+
 `compare_reports.py` は検査結果の JSON 同士、`diff_code.py` は Python ソース同士を比較する。用途を混同しない。
 
 ## 機械的に抽出する内容

@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import subprocess
 import sys
@@ -6,6 +7,12 @@ import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts' / 'check.py'
+TREE_SITTER = importlib.util.find_spec('tree_sitter') is not None
+NESTED = '''{
+  if (a) { for ({int} i = 0; i < b; i++) { while (b) { if (a && b) { b--; } } } }
+  return a ? 1 : 2;
+}
+'''
 
 
 class CheckTests(unittest.TestCase):
@@ -18,7 +25,7 @@ class CheckTests(unittest.TestCase):
                 path.write_text(content)
             result = subprocess.run(
                 [sys.executable, str(SCRIPT), '--json', *options, str(root)],
-                capture_output=True, text=True, check=False,
+                capture_output=True, encoding='utf-8', check=False,
             )
             for name, content in files.items():
                 self.assertEqual((root / name).read_text(), content)
@@ -76,21 +83,26 @@ class CheckTests(unittest.TestCase):
             self.assertTrue(report['errors'])
 
     def test_empty_or_unsupported_targets_do_not_pass(self):
-        for files in [{}, {'sample.ts': 'const value = 1;'}]:
+        for files in [{}, {'sample.txt': 'value = 1'}]:
             status, report = self.check(files)
             self.assertEqual(status, 2)
             self.assertEqual(report['filesChecked'], 0)
             self.assertTrue(report['errors'])
 
-    def test_ignored_directories_and_symlinks_are_declared(self):
+    def test_ignored_directories_are_declared(self):
         status, report = self.check({'sample.py': 'value = 1\n', '.venv/generated.py': 'invalid code('})
         self.assertEqual(status, 0)
         self.assertEqual(report['filesChecked'], 1)
         self.assertTrue(any(item['path'].endswith('.venv') for item in report['skipped']))
+
+    def test_symlinks_are_declared_and_not_followed(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'link.py'
-            path.symlink_to(SCRIPT)
-            result = subprocess.run([sys.executable, str(SCRIPT), '--json', str(path)], capture_output=True, text=True)
+            try:
+                path.symlink_to(SCRIPT)
+            except OSError:
+                self.skipTest('symbolic links need Developer Mode or administrator rights on Windows')
+            result = subprocess.run([sys.executable, str(SCRIPT), '--json', str(path)], capture_output=True, encoding='utf-8')
             self.assertEqual(result.returncode, 2)
             self.assertTrue(json.loads(result.stdout)['skipped'])
 
@@ -106,8 +118,8 @@ class CheckTests(unittest.TestCase):
             path = Path(directory) / 'sample.py'
             path.write_text('def f(a,b,c,d,e):\n    return a\n')
             args = [sys.executable, str(SCRIPT), '--json', directory, str(path)]
-            first = subprocess.run(args, capture_output=True, text=True)
-            second = subprocess.run(args, capture_output=True, text=True)
+            first = subprocess.run(args, capture_output=True, encoding='utf-8')
+            second = subprocess.run(args, capture_output=True, encoding='utf-8')
             self.assertEqual(first.returncode, 1)
             self.assertEqual(first.stdout, second.stdout)
             self.assertEqual(json.loads(first.stdout)['filesChecked'], 1)
@@ -116,7 +128,7 @@ class CheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'sample.py'
             path.write_bytes('# coding: cp932\nvalue = "日本語"\n'.encode('cp932'))
-            result = subprocess.run([sys.executable, str(SCRIPT), '--json', str(path)], capture_output=True, text=True)
+            result = subprocess.run([sys.executable, str(SCRIPT), '--json', str(path)], capture_output=True, encoding='utf-8')
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_async_comprehensions_and_exception_handlers(self):
@@ -151,11 +163,136 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual(report['filesChecked'], 1)
 
+    def test_output_is_utf8_even_for_paths_the_locale_cannot_encode(self):
+        status, report = self.check({'絵文字_😀.py': 'value = 1\n'})
+        self.assertEqual(status, 0, report['errors'])
+        self.assertEqual(Path(report['files'][0]['path']).name, '絵文字_😀.py')
+
     def test_valid_file_does_not_hide_an_invalid_file(self):
         status, report = self.check({'valid.py': 'value = 1\n', 'invalid.py': 'def broken( {\n'})
         self.assertEqual(status, 2)
         self.assertEqual(report['filesChecked'], 1)
         self.assertEqual(len(report['errors']), 1)
+
+
+@unittest.skipUnless(TREE_SITTER, 'requires tree-sitter from requirements.txt (Python 3.10+)')
+class OtherLanguageTests(unittest.TestCase):
+    check = CheckTests.check
+
+    def test_languages_share_the_python_rules(self):
+        files = {
+            'sample.c': 'int f(int a, int b) ' + NESTED.replace('{int}', 'int'),
+            'sample.cpp': 'int f(int a, int b) ' + NESTED.replace('{int}', 'int'),
+            'Sample.java': 'class Sample {\n  int f(int a, int b) ' + NESTED.replace('{int}', 'int') + '}\n',
+            'sample.js': 'function f(a, b) ' + NESTED.replace('{int}', 'let'),
+            'sample.ts': 'function f(a: number, b: number): number ' + NESTED.replace('{int}', 'let'),
+        }
+        status, report = self.check(files)
+        self.assertEqual(status, 1, report['errors'])
+        self.assertEqual(report['filesChecked'], 5)
+        for metrics in report['functions']:
+            self.assertEqual((metrics['name'], metrics['params'], metrics['depth'], metrics['complexity']), ('f', 2, 4, 7))
+        self.assertEqual(len([item for item in report['issues'] if item['rule'] == 'max-depth']), 5)
+        self.assertEqual(set(report['parsers']), {'tree-sitter', 'tree-sitter-c', 'tree-sitter-cpp', 'tree-sitter-java', 'tree-sitter-javascript', 'tree-sitter-typescript'})
+
+    def test_else_if_is_flat_but_else_block_if_nests(self):
+        body = 'if (a) { a = 1; } else if (b) { a = 2; } else { if (b) { a = 3; } }'
+        for name, source in [
+            ('sample.c', f'void f(int a, int b) {{ {body} }}'),
+            ('Sample.java', f'class Sample {{ void f(int a, boolean b) {{ {body} }} }}'),
+            ('sample.js', f'function f(a, b) {{ {body} }}'),
+        ]:
+            _, report = self.check({name: source})
+            self.assertEqual(report['functions'][0]['depth'], 2, name)
+            self.assertEqual(report['functions'][0]['complexity'], 4, name)
+
+    def test_nested_functions_are_measured_separately(self):
+        source = 'const outer = (a) => {\n  const inner = (b) => { if (b) { if (b) { return 1; } } };\n  return inner(a);\n};\n'
+        status, report = self.check({'sample.js': source})
+        self.assertEqual(status, 0)
+        metrics = {item['name']: item for item in report['functions']}
+        self.assertEqual((metrics['outer']['depth'], metrics['outer']['lines']), (0, 4))
+        self.assertEqual((metrics['inner']['depth'], metrics['inner']['params']), (2, 1))
+
+    def test_nested_ternary_comments_and_void_parameters(self):
+        status, report = self.check({
+            'sample.ts': 'const value = a ? (b ? 1 : 2) : 3;\n',
+            'sample.c': 'int f(void) {\n  /* if if if */\n\n  return 0;\n}\n',
+        })
+        self.assertEqual(status, 1)
+        self.assertEqual([(item['rule'], item['function']) for item in report['issues']], [('no-nested-ternary', None)])
+        self.assertEqual((report['functions'][0]['lines'], report['functions'][0]['params']), (3, 0))
+
+    def test_c_style_variadic_parameters_count_in_c_and_cpp(self):
+        source = 'int log_message(const char *format, ...) { return 0; }\n'
+        _, report = self.check({'sample.c': source, 'sample.cpp': source, 'sample.js': 'function f(format, ...rest) {}\n'})
+        self.assertEqual([item['params'] for item in report['functions']], [2, 2, 2])
+
+    def test_returned_function_pointers_and_references_use_the_functions_own_parameters(self):
+        _, report = self.check({
+            'sample.c': 'int (*factory(int a, int b, int c, int d, int e))(int x) { return 0; }\n',
+            'sample.cpp': 'int& get(int a, int b) { return a; }\nint (&A::pick(int a))[3] { return t; }\n',
+        })
+        self.assertEqual([(item['name'], item['params']) for item in report['functions']], [('factory', 5), ('get', 2), ('A::pick', 1)])
+        self.assertEqual([(item['rule'], item['function']) for item in report['issues']], [('max-params', 'factory')])
+
+    def test_preprocessor_conditions_are_not_runtime_branches(self):
+        source = 'int f(int a) {\n#if A && (B || C)\n  if (a) { return 1; }\n#endif\n  return 0;\n}\n'
+        _, report = self.check({'sample.c': source})
+        self.assertEqual((report['functions'][0]['complexity'], report['functions'][0]['depth']), (2, 1))
+
+    def test_unparsed_ranges_are_findings_and_skip_only_their_functions(self):
+        source = '#ifdef __cplusplus\nextern "C" {\n#endif\nint ok(int a) { return a; }\nint broken(int a) { MACRO_BEGIN return a; }\n#ifdef __cplusplus\n}\n#endif\n'
+        status, report = self.check({'sample.h': source, 'invalid.js': 'function broken( {\n'})
+        self.assertEqual(status, 1, report['errors'])
+        self.assertEqual(report['filesChecked'], 2)
+        self.assertEqual([item['name'] for item in report['functions']], ['ok'])
+        unparsed = {Path(item['path']).name for item in report['issues'] if item['rule'] == 'parse-error'}
+        self.assertEqual(unparsed, {'sample.h', 'invalid.js'})
+
+    def test_header_is_cpp_only_with_cpp_declarations_at_line_start(self):
+        # new is a C identifier but a C++ keyword, so only the C grammar measures this function.
+        source = '// Like std::max, which is not a C++ sign in a comment.\nint larger(int new, int old) { return new > old ? new : old; }\n'
+        status, report = self.check({'sample.h': source})
+        self.assertEqual(status, 0, report['issues'])
+        self.assertEqual(set(report['parsers']), {'tree-sitter', 'tree-sitter-c'})
+        self.assertEqual([item['name'] for item in report['functions']], ['larger'])
+        for marker in ['namespace n {}', 'template<class T> T id(T t);', 'template <class T> T id(T t);', 'class A;', 'struct A {\n  public:\n};', 'private:', 'protected:']:
+            _, report = self.check({'sample.h': marker + '\n' + source})
+            self.assertEqual(set(report['parsers']), {'tree-sitter', 'tree-sitter-cpp'}, marker)
+
+    def test_fold_expressions_count_logical_operators(self):
+        source = 'template <class... T>\nbool all(T... a) { return (a && ...) && (... || a) && (a + ...); }\n'
+        _, report = self.check({'sample.cpp': source})
+        self.assertEqual(report['functions'][0]['complexity'], 5)
+
+    def test_typescript_variance_annotations_are_read(self):
+        source = (
+            'interface Box<in out T, out U = string> { value: T; other: U }\n'
+            'type Sink<in\n  T> = (value: T) => void;\n'
+            'class Store<out T extends object> {\n'
+            '  find(o: Record<string, T>, out: number): number {\n'
+            '    for (const k in o) { if (k) { return out; } }\n'
+            '    return out;\n'
+            '  }\n'
+            '}\n'
+        )
+        status, report = self.check({'sample.ts': source, 'sample.tsx': source, 'broken.ts': 'let out = (;\n'})
+        self.assertEqual(status, 1)
+        self.assertEqual({Path(item['path']).name for item in report['issues']}, {'broken.ts'})
+        self.assertEqual(len(report['functions']), 2)
+        for metrics in report['functions']:
+            self.assertEqual((metrics['name'], metrics['line'], metrics['params'], metrics['depth'], metrics['complexity']), ('find', 5, 2, 2, 3))
+
+
+@unittest.skipIf(TREE_SITTER, 'tree-sitter is installed')
+class MissingParserTests(unittest.TestCase):
+    check = CheckTests.check
+
+    def test_missing_parser_is_an_error(self):
+        status, report = self.check({'sample.ts': 'const value = 1;\n'})
+        self.assertEqual(status, 2)
+        self.assertIn('tree_sitter', report['errors'][0]['message'])
 
 
 if __name__ == '__main__':
