@@ -140,3 +140,5 @@ $env:YOMITOKI_RUFF = "$PWD\.venv\Scripts\ruff.exe"
 ```
 
 On Python 3.9, the `match` statement test and the tree-sitter tests for other languages are skipped. On Python 3.10 or later with `requirements.txt` installed, all cases run.
+
+`scripts/` itself does not follow the bundled checks' default thresholds and formatting settings, so `run_checks.py scripts tests` reports findings.

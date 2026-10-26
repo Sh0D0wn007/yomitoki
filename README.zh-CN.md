@@ -140,3 +140,5 @@ $env:YOMITOKI_RUFF = "$PWD\.venv\Scripts\ruff.exe"
 ```
 
 在 Python 3.9 中会跳过 `match` 语句的测试以及使用 tree-sitter 的其他语言测试。在 Python 3.10 及以上版本中安装 `requirements.txt` 后可以运行全部用例。
+
+`scripts/` 本身没有按照附带检查的默认阈值和格式设置编写，因此 `run_checks.py scripts tests` 会报告问题。

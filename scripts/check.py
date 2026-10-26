@@ -152,9 +152,12 @@ def measure_function(function, path, lines, report):
         'params': parameters, 'depth': 0, 'complexity': 1,
     }
 
-    def visit(node, depth=0):
+    # An explicit stack, not recursion: deeply nested code must not exceed the recursion limit.
+    stack = [(statement, 0) for statement in reversed(function.body)]
+    while stack:
+        node, depth = stack.pop()
         if isinstance(node, SCOPES):
-            return
+            continue
         kind = type(node).__name__
         if kind in BLOCKS:
             depth += 1
@@ -171,35 +174,32 @@ def measure_function(function, path, lines, report):
             wildcard = type(node.pattern).__name__ == 'MatchAs' and node.pattern.pattern is None and node.guard is None
             metrics['complexity'] += int(not wildcard) + int(node.guard is not None)
         if isinstance(node, ast.If):
-            visit(node.test, depth)
-            for child in node.body:
-                visit(child, depth)
+            children = [(node.test, depth), *((child, depth) for child in node.body)]
             for child in node.orelse:
                 is_elif = isinstance(child, ast.If) and child.col_offset == node.col_offset
-                visit(child, depth - 1 if is_elif else depth)
-            return
-        for child in ast.iter_child_nodes(node):
-            visit(child, depth)
-
-    for statement in function.body:
-        visit(statement)
+                children.append((child, depth - 1 if is_elif else depth))
+        else:
+            children = [(child, depth) for child in ast.iter_child_nodes(node)]
+        stack.extend(reversed(children))
     report['functions'].append(metrics)
     for metric, rule in [('lines', 'max-lines'), ('params', 'max-params'), ('complexity', 'max-complexity')]:
         if metrics[metric] > report['limits'][rule]:
             issue(report, path, function.lineno, function.col_offset + 1, rule, metrics[metric], report['limits'][rule], function.name)
 
 
-def check_ternaries(node, path, report, depth=0, function=None):
-    if isinstance(node, SCOPES):
-        depth = 0
-    if isinstance(node, FUNCTIONS):
-        function = node.name
-    if isinstance(node, ast.IfExp):
-        depth += 1
-        if depth > 1:
-            issue(report, path, node.lineno, node.col_offset + 1, 'no-nested-ternary', depth, 1, function)
-    for child in ast.iter_child_nodes(node):
-        check_ternaries(child, path, report, depth, function)
+def check_ternaries(tree, path, report):
+    stack = [(tree, 0, None)]
+    while stack:
+        node, depth, function = stack.pop()
+        if isinstance(node, SCOPES):
+            depth = 0
+        if isinstance(node, FUNCTIONS):
+            function = node.name
+        if isinstance(node, ast.IfExp):
+            depth += 1
+            if depth > 1:
+                issue(report, path, node.lineno, node.col_offset + 1, 'no-nested-ternary', depth, 1, function)
+        stack.extend((child, depth, function) for child in reversed(list(ast.iter_child_nodes(node))))
 
 
 def walk_tree(root):
@@ -270,9 +270,13 @@ def measure_tree_function(function, path, lines, report):
         'params': tree_params(function), 'depth': 0, 'complexity': 1,
     }
 
-    def visit(node, depth=0):
+    body = function.child_by_field_name('body')
+    # An explicit stack, not recursion: deeply nested code must not exceed the recursion limit.
+    stack = [] if body is None else [(body, 0)]
+    while stack:
+        node, depth = stack.pop()
         if node.type in TREE_FUNCTIONS:
-            return
+            continue
         if node.type in TREE_BLOCKS and not is_else_if(node):
             depth += 1
             metrics['depth'] = max(metrics['depth'], depth)
@@ -287,31 +291,31 @@ def measure_tree_function(function, path, lines, report):
         elif node.type in ('binary_expression', 'fold_expression'):
             operator = node.child_by_field_name('operator')
             metrics['complexity'] += operator is not None and operator.type in LOGICAL_OPERATORS
-        for index, child in enumerate(node.children):
+        children = [
             # Preprocessor conditions are decided at compile time; only the code they select counts.
-            if child.is_named and not (node.type.startswith('preproc_') and node.field_name_for_child(index) == 'condition'):
-                visit(child, depth)
-
-    body = function.child_by_field_name('body')
-    if body is not None:
-        visit(body)
+            (child, depth) for index, child in enumerate(node.children)
+            if child.is_named and not (node.type.startswith('preproc_') and node.field_name_for_child(index) == 'condition')
+        ]
+        stack.extend(reversed(children))
     report['functions'].append(metrics)
     for metric, rule in [('lines', 'max-lines'), ('params', 'max-params'), ('complexity', 'max-complexity')]:
         if metrics[metric] > report['limits'][rule]:
             issue(report, path, line, column, rule, metrics[metric], report['limits'][rule], name)
 
 
-def check_tree_ternaries(node, path, report, depth=0, function=None):
-    if node.type == 'ERROR':
-        return
-    if node.type in TREE_FUNCTIONS:
-        depth, function = 0, tree_name(node)
-    if node.type in TREE_TERNARIES:
-        depth += 1
-        if depth > 1:
-            issue(report, path, *position(node), 'no-nested-ternary', depth, 1, function)
-    for child in node.named_children:
-        check_tree_ternaries(child, path, report, depth, function)
+def check_tree_ternaries(root, path, report):
+    stack = [(root, 0, None)]
+    while stack:
+        node, depth, function = stack.pop()
+        if node.type == 'ERROR':
+            continue
+        if node.type in TREE_FUNCTIONS:
+            depth, function = 0, tree_name(node)
+        if node.type in TREE_TERNARIES:
+            depth += 1
+            if depth > 1:
+                issue(report, path, *position(node), 'no-nested-ternary', depth, 1, function)
+        stack.extend((child, depth, function) for child in reversed(node.named_children))
 
 
 def tree_language(path, raw):
@@ -377,7 +381,8 @@ def inspect_tree_file(path, report):
         report['errors'].append({'path': str(path), 'line': None, 'message': str(error)})
         return
     for package in ('tree-sitter', module.replace('_', '-')):
-        report['parsers'][package] = importlib.metadata.version(package)
+        if package not in report['parsers']:
+            report['parsers'][package] = importlib.metadata.version(package)
     report['files'].append({'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest()})
     lines = set()
     for node in walk_tree(root):

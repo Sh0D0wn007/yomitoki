@@ -168,6 +168,11 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(status, 0, report['errors'])
         self.assertEqual(Path(report['files'][0]['path']).name, '絵文字_😀.py')
 
+    def test_expressions_deeper_than_the_recursion_limit_are_measured(self):
+        status, report = self.check({'sample.py': 'def f():\n    return ' + '+'.join(['1'] * 1500) + '\n'})
+        self.assertEqual(status, 0, report['errors'])
+        self.assertEqual(report['functions'][0]['complexity'], 1)
+
     def test_valid_file_does_not_hide_an_invalid_file(self):
         status, report = self.check({'valid.py': 'value = 1\n', 'invalid.py': 'def broken( {\n'})
         self.assertEqual(status, 2)
@@ -260,6 +265,12 @@ class OtherLanguageTests(unittest.TestCase):
         for marker in ['namespace n {}', 'template<class T> T id(T t);', 'template <class T> T id(T t);', 'class A;', 'struct A {\n  public:\n};', 'private:', 'protected:']:
             _, report = self.check({'sample.h': marker + '\n' + source})
             self.assertEqual(set(report['parsers']), {'tree-sitter', 'tree-sitter-cpp'}, marker)
+
+    def test_nesting_deeper_than_the_recursion_limit_is_measured(self):
+        source = 'int f(int a) {\n' + 'if (a) {\n' * 1500 + '}\n' * 1500 + 'return 0;\n}\n'
+        status, report = self.check({'sample.c': source})
+        self.assertEqual(status, 1, report['errors'])
+        self.assertEqual(report['functions'][0]['depth'], 1500)
 
     def test_fold_expressions_count_logical_operators(self):
         source = 'template <class... T>\nbool all(T... a) { return (a && ...) && (... || a) && (a + ...); }\n'

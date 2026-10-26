@@ -212,13 +212,34 @@ class WorkflowTests(unittest.TestCase):
         return fake
 
     def test_ruff_failure_and_invalid_output_are_errors(self):
-        self.source.write_text('value = 1\n')
+        # Two files share one Ruff run; after it fails, each is retried alone so the errors name both.
+        extra = self.root / 'extra.py'
+        for path in [self.source, extra]:
+            path.write_text('value = 1\n')
         for body in ['sys.exit(2)', 'print("not json")', 'print("{}")', 'print("[{}]"); sys.exit(1)']:
-            status, result = self.run_script('run_checks.py', '--ruff', self.fake_ruff(body), self.source)
+            status, result = self.run_script('run_checks.py', '--ruff', self.fake_ruff(body), self.source, extra)
             self.assertEqual(status, 2)
-            self.assertTrue(result['errors'])
+            self.assertEqual({Path(item['path']).name for item in result['errors']}, {'sample.py', 'extra.py'})
             self.assertEqual(result['ruff']['version'], 'ruff test', result['errors'])
             self.assertEqual(result['ruff']['filesChecked'], 0)
+
+    def test_utf8_files_share_one_ruff_run_and_other_encodings_use_stdin(self):
+        log = self.root / 'calls.json'
+        extra, legacy = self.root / 'extra.py', self.root / 'legacy.py'
+        for path in [self.source, extra]:
+            path.write_text('value = 1\n')
+        legacy.write_bytes('# coding: cp932\nvalue = "日本語"\n'.encode('cp932'))
+        body = f'import json\nwith open({str(log)!r}, "a") as log:\n    log.write(json.dumps(sys.argv[1:]) + "\\n")\nprint("[]")'
+        status, report = self.run_script('run_checks.py', '--ruff', self.fake_ruff(body), self.source, extra, legacy)
+        self.assertEqual(status, 0, report['errors'])
+        self.assertEqual(report['ruff']['filesChecked'], 3)
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        targets = sorted((call[0], sorted(Path(arg).name for arg in call if arg.endswith('.py'))) for call in calls)
+        self.assertEqual(targets, [
+            ('check', ['extra.py', 'sample.py']), ('check', ['legacy.py']),
+            ('format', ['extra.py', 'sample.py']), ('format', ['legacy.py']),
+        ])
+        self.assertTrue(all((call[-1] == '-') == ('legacy.py' in str(call)) for call in calls))
 
     def test_same_rule_moving_to_another_file_is_visible(self):
         extra = self.root / 'extra.py'
@@ -377,6 +398,18 @@ class WorkflowTests(unittest.TestCase):
             self.source.write_bytes(source)
             status, report = self.run_script('run_checks.py', '--ruff', RUFF, self.source)
             self.assertEqual(status, 0, (source, report['issues'], report['errors']))
+
+    @unittest.skipUnless(RUFF, 'Set YOMITOKI_RUFF for real Ruff integration tests')
+    def test_findings_of_files_checked_together_stay_with_their_files(self):
+        unformatted, legacy = self.root / 'unformatted.py', self.root / 'legacy.py'
+        self.source.write_text('import os\n')
+        unformatted.write_text("x = {'a':1}\n")
+        legacy.write_bytes('# coding: cp932\nimport os\n\nvalue = "日本語"\n'.encode('cp932'))
+        status, report = self.run_script('run_checks.py', '--ruff', RUFF, self.source, unformatted, legacy)
+        self.assertEqual(status, 1, report['errors'])
+        self.assertEqual(report['ruff']['filesChecked'], 3)
+        found = sorted((Path(item['path']).name, item['rule']) for item in report['issues'])
+        self.assertEqual(found, [('legacy.py', 'F401'), ('sample.py', 'F401'), ('unformatted.py', 'format-required')])
 
     @unittest.skipUnless(RUFF, 'Set YOMITOKI_RUFF for real Ruff integration tests')
     def test_suite_pass_does_not_imply_project_checks_passed(self):
