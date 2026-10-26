@@ -70,12 +70,28 @@ npx skills add Sh0D0wn007/yomitoki --skill yomitoki --global --agent codex claud
 | --- | --- | --- |
 | Codex・Gemini CLI・Cursor・GitHub Copilot | `~/.agents/skills/yomitoki` | `.agents/skills/yomitoki` |
 | Claude Code | `~/.claude/skills/yomitoki` | `.claude/skills/yomitoki` |
+| Antigravity | `~/.gemini/skills/yomitoki` | `.agents/skills/yomitoki` |
 
 Claude Code と併用する場合は、`~/.agents/skills` に置いた実体へのシンボリックリンクを作ると、更新が両方に反映されます。
 
 ```bash
 mkdir -p ~/.claude/skills
 ln -s ~/.agents/skills/yomitoki ~/.claude/skills/yomitoki
+```
+
+Antigravity と併用する場合は、`~/.gemini/skills` を `~/.agents/skills` にリンクさせておくと、`npx skills add -g` などで追加・更新したスキルが自動で Antigravity にも反映されます。Windows では管理者権限不要で動作するジャンクション（Junction）の作成を推奨します。
+
+macOS・Linux：
+
+```bash
+mkdir -p ~/.gemini
+ln -s ~/.agents/skills ~/.gemini/skills
+```
+
+Windows（PowerShell）：
+
+```powershell
+New-Item -ItemType Junction -Path "$HOME\.gemini\skills" -Target "$HOME\.agents\skills"
 ```
 
 上記以外の [Agent Skills 対応エージェント](https://agentskills.io/) では、各ドキュメントに記載されたスキルの配置先に置きます。既存のスキルがある場合は内容を確認し、バックアップしてから移行してください。スキルの指示は [SKILL.md](SKILL.md) にあります。`agents/openai.yaml` は Codex の画面表示用の任意設定です。

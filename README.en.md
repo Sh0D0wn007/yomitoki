@@ -70,12 +70,28 @@ Place this repository in your agent's skills directory under the name `yomitoki`
 | --- | --- | --- |
 | Codex, Gemini CLI, Cursor, GitHub Copilot | `~/.agents/skills/yomitoki` | `.agents/skills/yomitoki` |
 | Claude Code | `~/.claude/skills/yomitoki` | `.claude/skills/yomitoki` |
+| Antigravity | `~/.gemini/skills/yomitoki` | `.agents/skills/yomitoki` |
 
 If you also use Claude Code, create a symbolic link to the copy in `~/.agents/skills` so that updates apply to both.
 
 ```bash
 mkdir -p ~/.claude/skills
 ln -s ~/.agents/skills/yomitoki ~/.claude/skills/yomitoki
+```
+
+When using with Antigravity, linking `~/.gemini/skills` to `~/.agents/skills` ensures that any skills installed or updated via `npx skills add -g` are automatically reflected in Antigravity as well. On Windows, creating an NTFS Junction is recommended as it does not require administrator privileges.
+
+macOS and Linux:
+
+```bash
+mkdir -p ~/.gemini
+ln -s ~/.agents/skills ~/.gemini/skills
+```
+
+Windows (PowerShell):
+
+```powershell
+New-Item -ItemType Junction -Path "$HOME\.gemini\skills" -Target "$HOME\.agents\skills"
 ```
 
 For other [Agent Skills-compatible agents](https://agentskills.io/), place it in the skills location described in each agent's documentation. If you already have an existing skill, review its contents and back it up before migrating. The skill's instructions are in [SKILL.md](SKILL.md). `agents/openai.yaml` is an optional setting for how the skill is displayed in Codex.

@@ -70,12 +70,28 @@ CLI会自动放置文件并创建链接，无需手动放置。Python检查所�
 | --- | --- | --- |
 | Codex、Gemini CLI、Cursor、GitHub Copilot | `~/.agents/skills/yomitoki` | `.agents/skills/yomitoki` |
 | Claude Code | `~/.claude/skills/yomitoki` | `.claude/skills/yomitoki` |
+| Antigravity | `~/.gemini/skills/yomitoki` | `.agents/skills/yomitoki` |
 
 与 Claude Code 一同使用时，创建指向 `~/.agents/skills` 中实体的符号链接，更新即可同时反映到两者。
 
 ```bash
 mkdir -p ~/.claude/skills
 ln -s ~/.agents/skills/yomitoki ~/.claude/skills/yomitoki
+```
+
+与 Antigravity 配合使用时，将 `~/.gemini/skills` 链接到 `~/.agents/skills`，可以确保通过 `npx skills add -g` 安装或更新的技能自动同步反映在 Antigravity 中。在 Windows 上，推荐创建无需管理员权限的联接点（Junction）。
+
+macOS・Linux：
+
+```bash
+mkdir -p ~/.gemini
+ln -s ~/.agents/skills ~/.gemini/skills
+```
+
+Windows（PowerShell）：
+
+```powershell
+New-Item -ItemType Junction -Path "$HOME\.gemini\skills" -Target "$HOME\.agents\skills"
 ```
 
 对于上述以外的 [支持 Agent Skills 的智能体](https://agentskills.io/)，请放置到各自文档中所述的技能目录。如果已有现有技能，请先确认内容并备份后再迁移。技能的指令位于 [SKILL.md](SKILL.md)。`agents/openai.yaml` 是用于 Codex 界面显示的可选设置。
