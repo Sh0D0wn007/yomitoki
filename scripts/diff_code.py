@@ -24,16 +24,31 @@ LIMITATIONS = ['Review the full source diff and tests; this report does not prov
 
 
 def fingerprint(node):
-    return ast.dump(node, include_attributes=False)
+    parts = []
+    pending = [node]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, ast.AST):
+            fields = list(ast.iter_fields(item))
+            parts.append(('node', type(item).__name__, tuple(name for name, _ in fields)))
+            pending.extend(value for _, value in reversed(fields))
+        elif isinstance(item, list):
+            parts.append(('list', len(item)))
+            pending.extend(reversed(item))
+        else:
+            parts.append(('value', repr(item)))
+    return tuple(parts)
 
 
 def dotted_name(node):
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute):
-        base = dotted_name(node.value)
-        return f'{base}.{node.attr}' if base else None
-    return None
+    parts = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name):
+        return None
+    parts.append(node.id)
+    return '.'.join(reversed(parts))
 
 
 def name_of(node):
@@ -54,11 +69,14 @@ def inspect_source(path):
         raise ValueError('Expected a .py file')
     raw = path.read_bytes()
     encoding, _ = tokenize.detect_encoding(io.BytesIO(raw).readline)
-    tree = ast.parse(raw.decode(encoding), filename=str(path), type_comments=True)
-    compile(tree, str(path), 'exec')
+    source = raw.decode(encoding)
+    tree = ast.parse(source, filename=str(path), type_comments=True)
+    compile(source, str(path), 'exec')
     records = {category: [] for category in CATEGORIES}
 
-    def visit(node):
+    pending = [tree]
+    while pending:
+        node = pending.pop()
         kind = type(node).__name__
         for category, kinds in CATEGORIES.items():
             if kind in kinds:
@@ -66,11 +84,9 @@ def inspect_source(path):
                     'kind': kind, 'name': name_of(node), 'line': getattr(node, 'lineno', None),
                     'column': getattr(node, 'col_offset', -1) + 1,
                 }))
-        for child in ast.iter_child_nodes(node):
-            visit(child)
+        pending.extend(reversed(list(ast.iter_child_nodes(node))))
 
-    visit(tree)
-    # TypeIgnore.lineno is a field, so ast.dump includes it even without attributes.
+    # TypeIgnore.lineno is a field, so fingerprints include it even without attributes.
     for node in ast.walk(tree):
         if isinstance(node, ast.TypeIgnore):
             node.lineno = 0

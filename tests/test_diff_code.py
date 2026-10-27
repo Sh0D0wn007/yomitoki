@@ -69,9 +69,50 @@ class CodeDiffTests(unittest.TestCase):
     def test_changed_mapping_and_local_name(self):
         for before, after in [('x={"a":1,"b":2}\n', 'x={"a":2,"b":1}\n'),
                               ('x=1\n', 'result=1\n'),
+                              ('x=1\n', 'x=1.0\n'),
+                              ('x=1\n', 'x=True\n'),
+                              ('f(a, b)\n', 'f((a, b))\n'),
                               ('def f():\n return 1\n', 'def f():\n yield 1\n')]:
             with self.subTest(before=before):
                 self.assertTrue(self.compare(before, after)['astChanged'])
+
+    def test_deep_expression_comparison(self):
+        expression = '+'.join(['1'] * 1500)
+        source = 'value = ' + expression + '\n'
+        for after, text_changed in ((source, False), (source + '# comment\n', True)):
+            with self.subTest(text_changed=text_changed):
+                report = self.compare(source, after)
+                self.assertEqual(report['exitCode'], 0, report['errors'])
+                self.assertEqual(report['textChanged'], text_changed)
+                self.assertFalse(report['astChanged'])
+                self.assertEqual(report['changes'], [])
+
+        report = self.compare(source, 'value = ' + expression[:-1] + '2\n')
+        self.assertEqual(report['exitCode'], 1, report['errors'])
+        self.assertTrue(report['astChanged'])
+        self.assertEqual([item['category'] for item in report['changes']], ['data'])
+        self.assertEqual(report['changes'][0]['removed'][0]['kind'], 'Assign')
+        self.assertEqual(report['changes'][0]['added'][0]['line'], 1)
+
+        report = self.compare(expression + '\n', expression[:-1] + '2\n')
+        self.assertEqual(report['exitCode'], 1, report['errors'])
+        self.assertTrue(report['astChanged'])
+        self.assertEqual(report['changes'], [])
+
+    def test_deep_expression_in_definition_and_control_categories(self):
+        expression = '+'.join(['1'] * 1500)
+        before = 'def f():\n    if ' + expression + ':\n        return 1\n'
+        after = before.replace(expression, expression[:-1] + '2')
+        report = self.compare(before, after)
+        self.assertEqual(report['exitCode'], 1, report['errors'])
+        self.assertEqual([item['category'] for item in report['changes']], ['definitions', 'control'])
+
+    def test_deep_attribute_call_target(self):
+        target = 'root' + '.field' * 1500
+        report = self.compare(target + '()\n', target + '(1)\n')
+        self.assertEqual(report['exitCode'], 1, report['errors'])
+        effects = next(item for item in report['changes'] if item['category'] == 'effects')
+        self.assertEqual([item['name'] for item in effects['removed'] + effects['added']], [target, target])
 
     def test_unclassified_expression_is_still_detected(self):
         report = self.compare('x\n', 'y\n')

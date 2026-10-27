@@ -1,3 +1,4 @@
+import ast
 import importlib.util
 import json
 import subprocess
@@ -5,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts' / 'check.py'
 TREE_SITTER = importlib.util.find_spec('tree_sitter') is not None
@@ -183,6 +185,31 @@ class CheckTests(unittest.TestCase):
         status, report = self.check({'sample.py': 'def f():\n    return ' + '+'.join(['1'] * 1500) + '\n'})
         self.assertEqual(status, 0, report['errors'])
         self.assertEqual(report['functions'][0]['complexity'], 1)
+
+    def test_deep_expression_when_compiling_ast_exceeds_recursion_limit(self):
+        spec = importlib.util.spec_from_file_location('yomitoki_check', SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        original_compile = compile
+
+        def limited_compile(source, *args, **kwargs):
+            if isinstance(source, ast.AST):
+                raise RecursionError('deep AST compilation')
+            return original_compile(source, *args, **kwargs)
+
+        expression = '+'.join(['1'] * 1500)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'sample.py'
+            with patch.object(module, 'compile', side_effect=limited_compile, create=True):
+                path.write_text('def f():\n    return ' + expression + '\n')
+                report = module.build_report([str(path)], module.DEFAULT_LIMITS)
+                self.assertEqual(report['exitCode'], 0, report['errors'])
+                self.assertEqual(report['functions'][0]['complexity'], 1)
+                path.write_text('value = ' + expression + '\nreturn 1\n')
+                report = module.build_report([str(path)], module.DEFAULT_LIMITS)
+                self.assertEqual(report['exitCode'], 2)
+                self.assertEqual(report['errors'][0]['message'], "'return' outside function")
+                self.assertEqual(report['errors'][0]['line'], 2)
 
     def test_valid_file_does_not_hide_an_invalid_file(self):
         status, report = self.check({'valid.py': 'value = 1\n', 'invalid.py': 'def broken( {\n'})

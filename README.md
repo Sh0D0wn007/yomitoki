@@ -162,6 +162,6 @@ $env:YOMITOKI_RUFF = "$PWD\.venv\Scripts\ruff.exe"
 .venv\Scripts\ruff.exe check --isolated --no-cache --select E9,F scripts tests
 ```
 
-Python 3.9では`match`構文のテストと、tree-sitterを使う他言語のテストをスキップします。Python 3.10以上で`requirements.txt`を導入すると全ケースを実行できます。
+Python 3.9では`match`構文のテストと、tree-sitterを使う他言語のテストをスキップします。Python 3.10以上で`requirements.txt`を導入した場合は、tree-sitter未導入時のテストをスキップします。環境によってはシンボリックリンクのテストもスキップします。CIはUbuntuとWindowsでPython 3.10・3.11・3.12を検証する設定です。
 
 `scripts/`自体は付属検査の既定の閾値と整形設定に合わせていないため、`run_checks.py scripts tests`は指摘を返します。

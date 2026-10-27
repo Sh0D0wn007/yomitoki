@@ -162,6 +162,6 @@ $env:YOMITOKI_RUFF = "$PWD\.venv\Scripts\ruff.exe"
 .venv\Scripts\ruff.exe check --isolated --no-cache --select E9,F scripts tests
 ```
 
-On Python 3.9, the `match` statement test and the tree-sitter tests for other languages are skipped. On Python 3.10 or later with `requirements.txt` installed, all cases run.
+On Python 3.9, the `match` statement test and the tree-sitter tests for other languages are skipped. On Python 3.10 or later with `requirements.txt` installed, the test for a missing tree-sitter installation is skipped. Symlink tests may also be skipped depending on the environment. CI is configured to test Python 3.10, 3.11, and 3.12 on Ubuntu and Windows.
 
 `scripts/` itself does not follow the bundled checks' default thresholds and formatting settings, so `run_checks.py scripts tests` reports findings.

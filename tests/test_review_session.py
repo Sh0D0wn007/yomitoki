@@ -247,6 +247,19 @@ class ReviewSessionTests(unittest.TestCase):
         with self.assertRaisesRegex(review_session.SessionError, 'target is missing'):
             review_session.validate_session(second)
 
+    def test_finish_with_comment_edit_in_deep_expression(self):
+        source = 'value = ' + '+'.join(['1'] * 1500) + '\n'
+        self.source.write_text(source, encoding='utf-8')
+        self.assertEqual(self.begin(), 0)
+        self.source.write_text(source + '# comment\n', encoding='utf-8')
+        code, summary = self.finish()
+        self.assertEqual(code, 0, summary['errors'])
+        self.assertEqual(summary['status'], 'no-increase')
+        self.assertEqual(summary['changedFiles'], [str(self.source.resolve())])
+        self.assertEqual(summary['pythonStructuralChanges'], [{
+            'path': str(self.source.resolve()), 'astChanged': False, 'errors': [],
+        }])
+
     def test_include_diffs_embeds_the_saved_artifacts(self):
         self.begin()
         self.source.write_text('VALUE = 3\n', encoding='utf-8')
