@@ -70,7 +70,8 @@ npx skills add Sh0D0wn007/yomitoki --skill yomitoki --global --agent codex claud
 | --- | --- | --- |
 | Codex・Gemini CLI・Cursor・GitHub Copilot | `~/.agents/skills/yomitoki` | `.agents/skills/yomitoki` |
 | Claude Code | `~/.claude/skills/yomitoki` | `.claude/skills/yomitoki` |
-| Antigravity | `~/.gemini/skills/yomitoki` | `.agents/skills/yomitoki` |
+| Antigravity App・IDE | `~/.gemini/config/skills/yomitoki` | `.agents/skills/yomitoki` |
+| Antigravity CLI | `~/.gemini/antigravity-cli/skills/yomitoki` | `.agents/skills/yomitoki` |
 
 Claude Code と併用する場合は、`~/.agents/skills` に置いた実体へのシンボリックリンクを作ると、更新が両方に反映されます。
 
@@ -79,19 +80,26 @@ mkdir -p ~/.claude/skills
 ln -s ~/.agents/skills/yomitoki ~/.claude/skills/yomitoki
 ```
 
-Antigravity と併用する場合は、`~/.gemini/skills` を `~/.agents/skills` にリンクさせておくと、`npx skills add -g` などで追加・更新したスキルが自動で Antigravity にも反映されます。Windows では管理者権限不要で動作するジャンクション（Junction）の作成を推奨します。
+Antigravity と併用する場合は、[公式資料](https://www.antigravity.google/docs/skills) に記載された各製品の配置先を `~/.agents/skills` にリンクすると、`npx skills add -g` などの更新を共有できます。App・IDE と CLI では配置先が異なるため、以下のリンク作成は利用する製品のものだけ実行します。既存の配置やリンクがある場合は、内容を確認・退避してから移行します。Windows では管理者権限不要で動作するジャンクション（Junction）を使えます。
 
 macOS・Linux：
 
 ```bash
-mkdir -p ~/.gemini
-ln -s ~/.agents/skills ~/.gemini/skills
+mkdir -p ~/.gemini/config ~/.gemini/antigravity-cli
+# App / IDE
+ln -s ~/.agents/skills ~/.gemini/config/skills
+# CLI
+ln -s ~/.agents/skills ~/.gemini/antigravity-cli/skills
 ```
 
 Windows（PowerShell）：
 
 ```powershell
-New-Item -ItemType Junction -Path "$HOME\.gemini\skills" -Target "$HOME\.agents\skills"
+New-Item -ItemType Directory -Force -Path "$HOME\.gemini\config", "$HOME\.gemini\antigravity-cli" | Out-Null
+# App / IDE
+New-Item -ItemType Junction -Path "$HOME\.gemini\config\skills" -Target "$HOME\.agents\skills"
+# CLI
+New-Item -ItemType Junction -Path "$HOME\.gemini\antigravity-cli\skills" -Target "$HOME\.agents\skills"
 ```
 
 上記以外の [Agent Skills 対応エージェント](https://agentskills.io/) では、各ドキュメントに記載されたスキルの配置先に置きます。既存のスキルがある場合は内容を確認し、バックアップしてから移行してください。スキルの指示は [SKILL.md](SKILL.md) にあります。`agents/openai.yaml` は Codex の画面表示用の任意設定です。
@@ -162,6 +170,8 @@ $env:YOMITOKI_RUFF = "$PWD\.venv\Scripts\ruff.exe"
 .venv\Scripts\ruff.exe check --isolated --no-cache --select E9,F scripts tests
 ```
 
-Python 3.9では`match`構文のテストと、tree-sitterを使う他言語のテストをスキップします。Python 3.10以上で`requirements.txt`を導入した場合は、tree-sitter未導入時のテストをスキップします。環境によってはシンボリックリンクのテストもスキップします。CIはUbuntuとWindowsでPython 3.10・3.11・3.12を検証する設定です。
+CIの通常検証は、Ubuntu・Windows・macOSでPython 3.10・3.11・3.12を対象にします。Python 3.9はPython専用検査の互換性確認としてUbuntuで検証し、`match`構文とtree-sitterを使う他言語のテストをスキップします。新規の導入にはPython 3.10以上を使用してください。
+
+Python 3.10以上で`requirements.txt`を導入した場合は、tree-sitter未導入時のテストをスキップします。環境によってはシンボリックリンクのテストもスキップします。
 
 `scripts/`自体は付属検査の既定の閾値と整形設定に合わせていないため、`run_checks.py scripts tests`は指摘を返します。

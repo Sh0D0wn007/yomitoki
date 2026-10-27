@@ -70,7 +70,8 @@ CLI会自动放置文件并创建链接，无需手动放置。Python检查所�
 | --- | --- | --- |
 | Codex、Gemini CLI、Cursor、GitHub Copilot | `~/.agents/skills/yomitoki` | `.agents/skills/yomitoki` |
 | Claude Code | `~/.claude/skills/yomitoki` | `.claude/skills/yomitoki` |
-| Antigravity | `~/.gemini/skills/yomitoki` | `.agents/skills/yomitoki` |
+| Antigravity App / IDE | `~/.gemini/config/skills/yomitoki` | `.agents/skills/yomitoki` |
+| Antigravity CLI | `~/.gemini/antigravity-cli/skills/yomitoki` | `.agents/skills/yomitoki` |
 
 与 Claude Code 一同使用时，创建指向 `~/.agents/skills` 中实体的符号链接，更新即可同时反映到两者。
 
@@ -79,19 +80,26 @@ mkdir -p ~/.claude/skills
 ln -s ~/.agents/skills/yomitoki ~/.claude/skills/yomitoki
 ```
 
-与 Antigravity 配合使用时，将 `~/.gemini/skills` 链接到 `~/.agents/skills`，可以确保通过 `npx skills add -g` 安装或更新的技能自动同步反映在 Antigravity 中。在 Windows 上，推荐创建无需管理员权限的联接点（Junction）。
+与 Antigravity 配合使用时，将 [官方文档](https://www.antigravity.google/docs/skills) 中各产品的技能目录链接到 `~/.agents/skills`，即可共享通过 `npx skills add -g` 等命令进行的更新。App / IDE 与 CLI 的目录不同，下面仅执行所用产品对应的链接命令。如果目录或链接已存在，请先检查并备份再迁移。在 Windows 上可以使用无需管理员权限的联接点（Junction）。
 
 macOS・Linux：
 
 ```bash
-mkdir -p ~/.gemini
-ln -s ~/.agents/skills ~/.gemini/skills
+mkdir -p ~/.gemini/config ~/.gemini/antigravity-cli
+# App / IDE
+ln -s ~/.agents/skills ~/.gemini/config/skills
+# CLI
+ln -s ~/.agents/skills ~/.gemini/antigravity-cli/skills
 ```
 
 Windows（PowerShell）：
 
 ```powershell
-New-Item -ItemType Junction -Path "$HOME\.gemini\skills" -Target "$HOME\.agents\skills"
+New-Item -ItemType Directory -Force -Path "$HOME\.gemini\config", "$HOME\.gemini\antigravity-cli" | Out-Null
+# App / IDE
+New-Item -ItemType Junction -Path "$HOME\.gemini\config\skills" -Target "$HOME\.agents\skills"
+# CLI
+New-Item -ItemType Junction -Path "$HOME\.gemini\antigravity-cli\skills" -Target "$HOME\.agents\skills"
 ```
 
 对于上述以外的 [支持 Agent Skills 的智能体](https://agentskills.io/)，请放置到各自文档中所述的技能目录。如果已有现有技能，请先确认内容并备份后再迁移。技能的指令位于 [SKILL.md](SKILL.md)。`agents/openai.yaml` 是用于 Codex 界面显示的可选设置。
@@ -162,6 +170,8 @@ $env:YOMITOKI_RUFF = "$PWD\.venv\Scripts\ruff.exe"
 .venv\Scripts\ruff.exe check --isolated --no-cache --select E9,F scripts tests
 ```
 
-在 Python 3.9 中会跳过 `match` 语句的测试以及使用 tree-sitter 的其他语言测试。在 Python 3.10 及以上版本中安装 `requirements.txt` 后，会跳过 tree-sitter 未安装时的测试。符号链接测试也可能因环境限制而跳过。CI 配置为在 Ubuntu 和 Windows 上测试 Python 3.10、3.11 和 3.12。
+常规 CI 在 Ubuntu、Windows 和 macOS 上测试 Python 3.10、3.11 和 3.12。Python 3.9 在 Ubuntu 上验证 Python 专用检查的兼容性，跳过 `match` 语句测试及使用 tree-sitter 的其他语言测试。新安装请使用 Python 3.10 或更高版本。
+
+在 Python 3.10 及以上版本中安装 `requirements.txt` 后，会跳过 tree-sitter 未安装时的测试。符号链接测试也可能因环境限制而跳过。
 
 `scripts/` 本身没有按照附带检查的默认阈值和格式设置编写，因此 `run_checks.py scripts tests` 会报告问题。

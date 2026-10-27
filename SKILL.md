@@ -2,7 +2,7 @@
 name: yomitoki
 description: コードの理解にかかる時間を減らすため、命名・条件式・制御フロー・変数・責務・コメント・テストを見直す。「コードを読みやすく」「可読性を改善」「コードを綺麗に」と頼まれたときに使う。Python・C・C++・Java・JavaScript・TypeScriptは付属スクリプトで構文指標を測り、lint・整形やHTML・CSSは言語別ツールで機械検査する。レビューでは改善案を示し、修正依頼では既存の挙動を保つ小さなリファクタリングを行う。
 metadata:
-  version: "1.4.5"
+  version: "1.4.6"
 ---
 
 # yomitoki

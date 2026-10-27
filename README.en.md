@@ -70,7 +70,8 @@ Place this repository in your agent's skills directory under the name `yomitoki`
 | --- | --- | --- |
 | Codex, Gemini CLI, Cursor, GitHub Copilot | `~/.agents/skills/yomitoki` | `.agents/skills/yomitoki` |
 | Claude Code | `~/.claude/skills/yomitoki` | `.claude/skills/yomitoki` |
-| Antigravity | `~/.gemini/skills/yomitoki` | `.agents/skills/yomitoki` |
+| Antigravity App / IDE | `~/.gemini/config/skills/yomitoki` | `.agents/skills/yomitoki` |
+| Antigravity CLI | `~/.gemini/antigravity-cli/skills/yomitoki` | `.agents/skills/yomitoki` |
 
 If you also use Claude Code, create a symbolic link to the copy in `~/.agents/skills` so that updates apply to both.
 
@@ -79,19 +80,26 @@ mkdir -p ~/.claude/skills
 ln -s ~/.agents/skills/yomitoki ~/.claude/skills/yomitoki
 ```
 
-When using with Antigravity, linking `~/.gemini/skills` to `~/.agents/skills` ensures that any skills installed or updated via `npx skills add -g` are automatically reflected in Antigravity as well. On Windows, creating an NTFS Junction is recommended as it does not require administrator privileges.
+When using Antigravity alongside other agents, link each product's location from the [official documentation](https://www.antigravity.google/docs/skills) to `~/.agents/skills` to share updates made by `npx skills add -g` and similar commands. App / IDE and CLI use different locations; run only the link command for the product you use below. If a location or link already exists, inspect and back it up before migrating. On Windows, an NTFS Junction works without administrator privileges.
 
 macOS and Linux:
 
 ```bash
-mkdir -p ~/.gemini
-ln -s ~/.agents/skills ~/.gemini/skills
+mkdir -p ~/.gemini/config ~/.gemini/antigravity-cli
+# App / IDE
+ln -s ~/.agents/skills ~/.gemini/config/skills
+# CLI
+ln -s ~/.agents/skills ~/.gemini/antigravity-cli/skills
 ```
 
 Windows (PowerShell):
 
 ```powershell
-New-Item -ItemType Junction -Path "$HOME\.gemini\skills" -Target "$HOME\.agents\skills"
+New-Item -ItemType Directory -Force -Path "$HOME\.gemini\config", "$HOME\.gemini\antigravity-cli" | Out-Null
+# App / IDE
+New-Item -ItemType Junction -Path "$HOME\.gemini\config\skills" -Target "$HOME\.agents\skills"
+# CLI
+New-Item -ItemType Junction -Path "$HOME\.gemini\antigravity-cli\skills" -Target "$HOME\.agents\skills"
 ```
 
 For other [Agent Skills-compatible agents](https://agentskills.io/), place it in the skills location described in each agent's documentation. If you already have an existing skill, review its contents and back it up before migrating. The skill's instructions are in [SKILL.md](SKILL.md). `agents/openai.yaml` is an optional setting for how the skill is displayed in Codex.
@@ -162,6 +170,8 @@ $env:YOMITOKI_RUFF = "$PWD\.venv\Scripts\ruff.exe"
 .venv\Scripts\ruff.exe check --isolated --no-cache --select E9,F scripts tests
 ```
 
-On Python 3.9, the `match` statement test and the tree-sitter tests for other languages are skipped. On Python 3.10 or later with `requirements.txt` installed, the test for a missing tree-sitter installation is skipped. Symlink tests may also be skipped depending on the environment. CI is configured to test Python 3.10, 3.11, and 3.12 on Ubuntu and Windows.
+The main CI matrix covers Python 3.10, 3.11, and 3.12 on Ubuntu, Windows, and macOS. Python 3.9 is tested on Ubuntu for compatibility with Python-only checks, skipping the `match` statement test and tree-sitter tests for other languages. Use Python 3.10 or later for new installations.
+
+On Python 3.10 or later with `requirements.txt` installed, the test for a missing tree-sitter installation is skipped. Symlink tests may also be skipped depending on the environment.
 
 `scripts/` itself does not follow the bundled checks' default thresholds and formatting settings, so `run_checks.py scripts tests` reports findings.
