@@ -247,6 +247,23 @@ class ReviewSessionTests(unittest.TestCase):
         with self.assertRaisesRegex(review_session.SessionError, 'target is missing'):
             review_session.validate_session(second)
 
+    def test_finish_reports_source_change_once(self):
+        self.begin()
+
+        def change_after_check(options):
+            result = self.fake_runner(options)
+            self.source.write_text('VALUE = 2\n', encoding='utf-8')
+            return result
+
+        args = SimpleNamespace(state_dir=str(self.state))
+        with patch.object(review_session, 'invoke_runner', side_effect=change_after_check):
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                code = review_session.finish(args)
+        summary = json.loads(output.getvalue())
+        error = f'target changed during or after checks: {self.source.resolve()}'
+        self.assertEqual(code, 2)
+        self.assertEqual(summary['errors'].count(error), 1)
+
     def test_finish_with_comment_edit_in_deep_expression(self):
         source = 'value = ' + '+'.join(['1'] * 1500) + '\n'
         self.source.write_text(source, encoding='utf-8')

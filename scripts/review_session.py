@@ -433,8 +433,6 @@ def finish(args):
 
     changed = [item['path'] for item in readable]
     errors = [*after_report.get('errors', []), *comparison.get('errors', [])]
-    if source_errors:
-        errors.extend(source_errors)
     summary = {
         'status': comparison.get('status', 'error'),
         'finishDir': str(finish_dir),

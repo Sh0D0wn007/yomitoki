@@ -80,26 +80,64 @@ mkdir -p ~/.claude/skills
 ln -s ~/.agents/skills/yomitoki ~/.claude/skills/yomitoki
 ```
 
-与 Antigravity 配合使用时，将 [官方文档](https://www.antigravity.google/docs/skills) 中各产品的技能目录链接到 `~/.agents/skills`，即可共享通过 `npx skills add -g` 等命令进行的更新。App / IDE 与 CLI 的目录不同，下面仅执行所用产品对应的链接命令。如果目录或链接已存在，请先检查并备份再迁移。在 Windows 上可以使用无需管理员权限的联接点（Junction）。
+与 Antigravity 配合使用时，将 `~/.agents/skills` 链接到 [官方文档](https://www.antigravity.google/docs/skills) 中各产品的技能目录，即可共享通过 `npx skills add -g` 等命令进行的更新。App / IDE 与 CLI 的目录不同，下面仅执行所用产品对应的链接命令。如果目录或链接已存在，请先检查并备份再迁移。在 Windows 上可以使用无需管理员权限的联接点（Junction）。
+
+App / IDE 和 CLI 分别使用独立的代码块。请只执行所用产品对应的代码块。
 
 macOS・Linux：
 
+App / IDE:
+
 ```bash
-mkdir -p ~/.gemini/config ~/.gemini/antigravity-cli
-# App / IDE
-ln -s ~/.agents/skills ~/.gemini/config/skills
-# CLI
-ln -s ~/.agents/skills ~/.gemini/antigravity-cli/skills
+mkdir -p ~/.gemini/config
+(if [ -e ~/.gemini/config/skills ] || [ -L ~/.gemini/config/skills ]; then
+  if [ -e ~/.gemini/config/skills.bak ] || [ -L ~/.gemini/config/skills.bak ]; then
+    echo "备份已存在，已停止: ~/.gemini/config/skills.bak" >&2
+    exit 1
+  fi
+  mv ~/.gemini/config/skills ~/.gemini/config/skills.bak || exit 1
+fi
+ln -s ~/.agents/skills ~/.gemini/config/skills)
+```
+
+CLI:
+
+```bash
+mkdir -p ~/.gemini/antigravity-cli
+(if [ -e ~/.gemini/antigravity-cli/skills ] || [ -L ~/.gemini/antigravity-cli/skills ]; then
+  if [ -e ~/.gemini/antigravity-cli/skills.bak ] || [ -L ~/.gemini/antigravity-cli/skills.bak ]; then
+    echo "备份已存在，已停止: ~/.gemini/antigravity-cli/skills.bak" >&2
+    exit 1
+  fi
+  mv ~/.gemini/antigravity-cli/skills ~/.gemini/antigravity-cli/skills.bak || exit 1
+fi
+ln -s ~/.agents/skills ~/.gemini/antigravity-cli/skills)
 ```
 
 Windows（PowerShell）：
 
+App / IDE:
+
 ```powershell
-New-Item -ItemType Directory -Force -Path "$HOME\.gemini\config", "$HOME\.gemini\antigravity-cli" | Out-Null
-# App / IDE
-New-Item -ItemType Junction -Path "$HOME\.gemini\config\skills" -Target "$HOME\.agents\skills"
-# CLI
-New-Item -ItemType Junction -Path "$HOME\.gemini\antigravity-cli\skills" -Target "$HOME\.agents\skills"
+New-Item -ItemType Directory -Force -Path "$HOME\.gemini\config" | Out-Null
+$link = "$HOME\.gemini\config\skills"
+if (Test-Path -LiteralPath $link) {
+  if (Test-Path -LiteralPath "$link.bak") { throw "备份已存在，已停止: $link.bak" }
+  Move-Item -LiteralPath $link -Destination "$link.bak" -ErrorAction Stop
+}
+New-Item -ItemType Junction -Path $link -Target "$HOME\.agents\skills"
+```
+
+CLI:
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$HOME\.gemini\antigravity-cli" | Out-Null
+$link = "$HOME\.gemini\antigravity-cli\skills"
+if (Test-Path -LiteralPath $link) {
+  if (Test-Path -LiteralPath "$link.bak") { throw "备份已存在，已停止: $link.bak" }
+  Move-Item -LiteralPath $link -Destination "$link.bak" -ErrorAction Stop
+}
+New-Item -ItemType Junction -Path $link -Target "$HOME\.agents\skills"
 ```
 
 对于上述以外的 [支持 Agent Skills 的智能体](https://agentskills.io/)，请放置到各自文档中所述的技能目录。如果已有现有技能，请先确认内容并备份后再迁移。技能的指令位于 [SKILL.md](SKILL.md)。`agents/openai.yaml` 是用于 Codex 界面显示的可选设置。

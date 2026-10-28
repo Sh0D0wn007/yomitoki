@@ -80,26 +80,64 @@ mkdir -p ~/.claude/skills
 ln -s ~/.agents/skills/yomitoki ~/.claude/skills/yomitoki
 ```
 
-Antigravity と併用する場合は、[公式資料](https://www.antigravity.google/docs/skills) に記載された各製品の配置先を `~/.agents/skills` にリンクすると、`npx skills add -g` などの更新を共有できます。App・IDE と CLI では配置先が異なるため、以下のリンク作成は利用する製品のものだけ実行します。既存の配置やリンクがある場合は、内容を確認・退避してから移行します。Windows では管理者権限不要で動作するジャンクション（Junction）を使えます。
+Antigravity と併用する場合は、`~/.agents/skills` を [公式資料](https://www.antigravity.google/docs/skills) に記載された各製品の配置先にリンクすると、`npx skills add -g` などの更新を共有できます。App・IDE と CLI では配置先が異なるため、以下のリンク作成は利用する製品のものだけ実行します。既存の配置やリンクがある場合は、内容を確認・退避してから移行します。Windows では管理者権限不要で動作するジャンクション（Junction）を使えます。
+
+App・IDE と CLI はそれぞれ別のコードブロックです。利用する製品のブロックだけを実行してください。
 
 macOS・Linux：
 
+App / IDE:
+
 ```bash
-mkdir -p ~/.gemini/config ~/.gemini/antigravity-cli
-# App / IDE
-ln -s ~/.agents/skills ~/.gemini/config/skills
-# CLI
-ln -s ~/.agents/skills ~/.gemini/antigravity-cli/skills
+mkdir -p ~/.gemini/config
+(if [ -e ~/.gemini/config/skills ] || [ -L ~/.gemini/config/skills ]; then
+  if [ -e ~/.gemini/config/skills.bak ] || [ -L ~/.gemini/config/skills.bak ]; then
+    echo "退避先が既に存在するため中止します: ~/.gemini/config/skills.bak" >&2
+    exit 1
+  fi
+  mv ~/.gemini/config/skills ~/.gemini/config/skills.bak || exit 1
+fi
+ln -s ~/.agents/skills ~/.gemini/config/skills)
+```
+
+CLI:
+
+```bash
+mkdir -p ~/.gemini/antigravity-cli
+(if [ -e ~/.gemini/antigravity-cli/skills ] || [ -L ~/.gemini/antigravity-cli/skills ]; then
+  if [ -e ~/.gemini/antigravity-cli/skills.bak ] || [ -L ~/.gemini/antigravity-cli/skills.bak ]; then
+    echo "退避先が既に存在するため中止します: ~/.gemini/antigravity-cli/skills.bak" >&2
+    exit 1
+  fi
+  mv ~/.gemini/antigravity-cli/skills ~/.gemini/antigravity-cli/skills.bak || exit 1
+fi
+ln -s ~/.agents/skills ~/.gemini/antigravity-cli/skills)
 ```
 
 Windows（PowerShell）：
 
+App / IDE:
+
 ```powershell
-New-Item -ItemType Directory -Force -Path "$HOME\.gemini\config", "$HOME\.gemini\antigravity-cli" | Out-Null
-# App / IDE
-New-Item -ItemType Junction -Path "$HOME\.gemini\config\skills" -Target "$HOME\.agents\skills"
-# CLI
-New-Item -ItemType Junction -Path "$HOME\.gemini\antigravity-cli\skills" -Target "$HOME\.agents\skills"
+New-Item -ItemType Directory -Force -Path "$HOME\.gemini\config" | Out-Null
+$link = "$HOME\.gemini\config\skills"
+if (Test-Path -LiteralPath $link) {
+  if (Test-Path -LiteralPath "$link.bak") { throw "退避先が既に存在するため中止します: $link.bak" }
+  Move-Item -LiteralPath $link -Destination "$link.bak" -ErrorAction Stop
+}
+New-Item -ItemType Junction -Path $link -Target "$HOME\.agents\skills"
+```
+
+CLI:
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$HOME\.gemini\antigravity-cli" | Out-Null
+$link = "$HOME\.gemini\antigravity-cli\skills"
+if (Test-Path -LiteralPath $link) {
+  if (Test-Path -LiteralPath "$link.bak") { throw "退避先が既に存在するため中止します: $link.bak" }
+  Move-Item -LiteralPath $link -Destination "$link.bak" -ErrorAction Stop
+}
+New-Item -ItemType Junction -Path $link -Target "$HOME\.agents\skills"
 ```
 
 上記以外の [Agent Skills 対応エージェント](https://agentskills.io/) では、各ドキュメントに記載されたスキルの配置先に置きます。既存のスキルがある場合は内容を確認し、バックアップしてから移行してください。スキルの指示は [SKILL.md](SKILL.md) にあります。`agents/openai.yaml` は Codex の画面表示用の任意設定です。

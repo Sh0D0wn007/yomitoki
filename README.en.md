@@ -80,26 +80,64 @@ mkdir -p ~/.claude/skills
 ln -s ~/.agents/skills/yomitoki ~/.claude/skills/yomitoki
 ```
 
-When using Antigravity alongside other agents, link each product's location from the [official documentation](https://www.antigravity.google/docs/skills) to `~/.agents/skills` to share updates made by `npx skills add -g` and similar commands. App / IDE and CLI use different locations; run only the link command for the product you use below. If a location or link already exists, inspect and back it up before migrating. On Windows, an NTFS Junction works without administrator privileges.
+When using Antigravity alongside other agents, link `~/.agents/skills` at each product's location from the [official documentation](https://www.antigravity.google/docs/skills) to share updates made by `npx skills add -g` and similar commands. App / IDE and CLI use different locations; run only the link command for the product you use below. If a location or link already exists, inspect and back it up before migrating. On Windows, an NTFS Junction works without administrator privileges.
+
+App / IDE and CLI have separate code blocks. Run only the block for the product you use.
 
 macOS and Linux:
 
+App / IDE:
+
 ```bash
-mkdir -p ~/.gemini/config ~/.gemini/antigravity-cli
-# App / IDE
-ln -s ~/.agents/skills ~/.gemini/config/skills
-# CLI
-ln -s ~/.agents/skills ~/.gemini/antigravity-cli/skills
+mkdir -p ~/.gemini/config
+(if [ -e ~/.gemini/config/skills ] || [ -L ~/.gemini/config/skills ]; then
+  if [ -e ~/.gemini/config/skills.bak ] || [ -L ~/.gemini/config/skills.bak ]; then
+    echo "Backup already exists; stopped: ~/.gemini/config/skills.bak" >&2
+    exit 1
+  fi
+  mv ~/.gemini/config/skills ~/.gemini/config/skills.bak || exit 1
+fi
+ln -s ~/.agents/skills ~/.gemini/config/skills)
+```
+
+CLI:
+
+```bash
+mkdir -p ~/.gemini/antigravity-cli
+(if [ -e ~/.gemini/antigravity-cli/skills ] || [ -L ~/.gemini/antigravity-cli/skills ]; then
+  if [ -e ~/.gemini/antigravity-cli/skills.bak ] || [ -L ~/.gemini/antigravity-cli/skills.bak ]; then
+    echo "Backup already exists; stopped: ~/.gemini/antigravity-cli/skills.bak" >&2
+    exit 1
+  fi
+  mv ~/.gemini/antigravity-cli/skills ~/.gemini/antigravity-cli/skills.bak || exit 1
+fi
+ln -s ~/.agents/skills ~/.gemini/antigravity-cli/skills)
 ```
 
 Windows (PowerShell):
 
+App / IDE:
+
 ```powershell
-New-Item -ItemType Directory -Force -Path "$HOME\.gemini\config", "$HOME\.gemini\antigravity-cli" | Out-Null
-# App / IDE
-New-Item -ItemType Junction -Path "$HOME\.gemini\config\skills" -Target "$HOME\.agents\skills"
-# CLI
-New-Item -ItemType Junction -Path "$HOME\.gemini\antigravity-cli\skills" -Target "$HOME\.agents\skills"
+New-Item -ItemType Directory -Force -Path "$HOME\.gemini\config" | Out-Null
+$link = "$HOME\.gemini\config\skills"
+if (Test-Path -LiteralPath $link) {
+  if (Test-Path -LiteralPath "$link.bak") { throw "Backup already exists; stopped: $link.bak" }
+  Move-Item -LiteralPath $link -Destination "$link.bak" -ErrorAction Stop
+}
+New-Item -ItemType Junction -Path $link -Target "$HOME\.agents\skills"
+```
+
+CLI:
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$HOME\.gemini\antigravity-cli" | Out-Null
+$link = "$HOME\.gemini\antigravity-cli\skills"
+if (Test-Path -LiteralPath $link) {
+  if (Test-Path -LiteralPath "$link.bak") { throw "Backup already exists; stopped: $link.bak" }
+  Move-Item -LiteralPath $link -Destination "$link.bak" -ErrorAction Stop
+}
+New-Item -ItemType Junction -Path $link -Target "$HOME\.agents\skills"
 ```
 
 For other [Agent Skills-compatible agents](https://agentskills.io/), place it in the skills location described in each agent's documentation. If you already have an existing skill, review its contents and back it up before migrating. The skill's instructions are in [SKILL.md](SKILL.md). `agents/openai.yaml` is an optional setting for how the skill is displayed in Codex.
